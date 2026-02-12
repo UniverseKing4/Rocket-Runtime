@@ -1,0 +1,3886 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Rocket Runtime - Journey to Infinity</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            overflow: hidden;
+            font-family: 'Courier New', monospace;
+            background: #000;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        #gameCanvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            cursor: crosshair;
+        }
+
+        #ui {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        /* Altitude Scale on the right */
+        #altitudeScale {
+            position: fixed;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid #00ff88;
+            border-radius: 10px;
+            padding: 15px 8px;
+            min-height: 60vh;
+            width: 90px;
+            display: flex;
+            flex-direction: column-reverse;
+            justify-content: space-between;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
+        }
+
+        .scale-marker {
+            color: #00ff88;
+            font-size: 10px;
+            text-align: right;
+            position: relative;
+            padding-right: 20px;
+            margin: 5px 0;
+            text-shadow: 0 0 5px rgba(0, 255, 136, 0.8);
+        }
+
+        .scale-marker::after {
+            content: '';
+            position: absolute;
+            right: 0;
+            top: 50%;
+            width: 20px;
+            height: 2px;
+            background: #00ff88;
+            box-shadow: 0 0 5px rgba(0, 255, 136, 0.8);
+        }
+
+        .scale-marker.major::after {
+            width: 25px;
+            height: 3px;
+        }
+
+        /* Stats Display */
+        #statsPanel {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #00ffff;
+            border-radius: 10px;
+            padding: 20px;
+            color: #00ffff;
+            font-size: 14px;
+            min-width: 250px;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+        }
+
+        .stat-row {
+            margin: 8px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .stat-label {
+            color: #88ffff;
+            margin-right: 10px;
+        }
+
+        .stat-value {
+            color: #fff;
+            font-weight: bold;
+            text-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
+        }
+
+        /* Fuel Bar */
+        #fuelBar {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            max-width: 400px;
+            height: 30px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #ff8800;
+            border-radius: 15px;
+            padding: 3px;
+            box-shadow: 0 0 20px rgba(255, 136, 0, 0.5);
+        }
+
+        #fuelBarFill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff0000, #ff8800, #ffff00);
+            border-radius: 12px;
+            transition: width 0.1s linear;
+            box-shadow: 0 0 10px rgba(255, 136, 0, 0.8);
+        }
+
+        #fuelText {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            font-weight: bold;
+            font-size: 12px;
+            text-shadow: 0 0 5px #000;
+            pointer-events: none;
+        }
+
+        /* Start Screen */
+        #startScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(ellipse at bottom, #1B2735 0%, #090A0F 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            transition: opacity 1s;
+            overflow: hidden;
+        }
+
+        #startScreen::before {
+            content: '';
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                radial-gradient(2px 2px at 20px 30px, #eee, rgba(0,0,0,0)),
+                radial-gradient(2px 2px at 60px 70px, #fff, rgba(0,0,0,0)),
+                radial-gradient(1px 1px at 50px 50px, #fff, rgba(0,0,0,0)),
+                radial-gradient(1px 1px at 130px 80px, #fff, rgba(0,0,0,0)),
+                radial-gradient(2px 2px at 90px 10px, #fff, rgba(0,0,0,0));
+            background-repeat: repeat;
+            background-size: 200px 200px;
+            animation: twinkle 5s ease-in-out infinite;
+            opacity: 0.8;
+        }
+
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.8; }
+            50% { opacity: 1; }
+        }
+
+        #startScreen.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #startScreen.launching {
+            animation: screenShake 0.5s ease-in-out;
+        }
+
+        @keyframes screenShake {
+            0%, 100% { transform: translate(0, 0); }
+            10%, 30%, 50%, 70%, 90% { transform: translate(-2px, 2px); }
+            20%, 40%, 60%, 80% { transform: translate(2px, -2px); }
+        }
+
+        .rocket-logo {
+            width: clamp(80px, 15vw, 120px);
+            height: clamp(120px, 22vw, 180px);
+            margin-bottom: clamp(20px, 4vh, 40px);
+            position: relative;
+            animation: float 3s ease-in-out infinite;
+            filter: drop-shadow(0 0 20px rgba(0, 255, 255, 0.6));
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+        }
+
+        .rocket-logo.launching {
+            animation: rocketLaunch 1s ease-in forwards;
+        }
+
+        @keyframes rocketLaunch {
+            0% { transform: translateY(0) scale(1); }
+            50% { transform: translateY(-30px) scale(1.1); }
+            100% { transform: translateY(-150vh) scale(0.5); }
+        }
+
+        #title {
+            font-size: clamp(32px, 8vw, 64px);
+            font-weight: 900;
+            background: linear-gradient(135deg, #00ffff 0%, #0088ff 50%, #00ffff 100%);
+            background-size: 200% 200%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: clamp(5px, 1vh, 10px);
+            animation: gradientShift 3s ease infinite, titleGlow 2s ease-in-out infinite;
+            letter-spacing: clamp(2px, 1vw, 8px);
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            padding: 0 20px;
+        }
+
+        @keyframes titleGlow {
+            0%, 100% { filter: drop-shadow(0 0 10px rgba(0, 255, 255, 0.8)); }
+            50% { filter: drop-shadow(0 0 30px rgba(0, 255, 255, 1)); }
+        }
+
+        @keyframes gradientShift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+
+        #subtitle {
+            font-size: clamp(14px, 3vw, 24px);
+            color: #88ffff;
+            margin-bottom: clamp(30px, 5vh, 50px);
+            text-shadow: 0 0 10px rgba(136, 255, 255, 0.6);
+            letter-spacing: clamp(2px, 0.5vw, 4px);
+            font-weight: 300;
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            padding: 0 20px;
+        }
+
+        #startButton {
+            padding: clamp(15px, 2vh, 20px) clamp(40px, 8vw, 60px);
+            font-size: clamp(18px, 3vw, 26px);
+            background: linear-gradient(135deg, #00ffff, #0088ff, #00ffff);
+            background-size: 200% 200%;
+            border: 3px solid rgba(0, 255, 255, 0.5);
+            border-radius: 50px;
+            color: #000;
+            font-weight: bold;
+            cursor: pointer;
+            pointer-events: all;
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.6), inset 0 0 20px rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+            animation: buttonPulse 2s ease infinite;
+            position: relative;
+            z-index: 1;
+            text-transform: uppercase;
+            letter-spacing: clamp(1px, 0.3vw, 2px);
+            overflow: hidden;
+        }
+
+        #startButton::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.5);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        #startButton.clicked::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        @keyframes buttonPulse {
+            0%, 100% { 
+                box-shadow: 0 0 30px rgba(0, 255, 255, 0.6), inset 0 0 20px rgba(255, 255, 255, 0.2);
+                background-position: 0% 50%;
+            }
+            50% { 
+                box-shadow: 0 0 50px rgba(0, 255, 255, 1), 0 0 80px rgba(0, 136, 255, 0.5), inset 0 0 30px rgba(255, 255, 255, 0.3);
+                background-position: 100% 50%;
+            }
+        }
+
+        #startButton:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 60px rgba(0, 255, 255, 1), 0 0 100px rgba(0, 136, 255, 0.7), inset 0 0 40px rgba(255, 255, 255, 0.4);
+        }
+
+        .launch-flame {
+            position: absolute;
+            bottom: -50px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60px;
+            height: 100px;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .launch-flame.active {
+            animation: flameIgnite 1s ease-out forwards;
+        }
+
+        @keyframes flameIgnite {
+            0% { opacity: 0; transform: translateX(-50%) scale(0.5); }
+            30% { opacity: 1; transform: translateX(-50%) scale(1.2); }
+            100% { opacity: 0; transform: translateX(-50%) scale(2) translateY(-200px); }
+        }
+
+        #instructions {
+            margin-top: clamp(30px, 5vh, 50px);
+            color: #aaffff;
+            font-size: clamp(12px, 2vw, 16px);
+            text-align: center;
+            line-height: 1.8;
+            position: relative;
+            z-index: 1;
+            background: rgba(0, 20, 40, 0.6);
+            padding: clamp(15px, 3vh, 20px) clamp(20px, 5vw, 40px);
+            border-radius: 15px;
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            backdrop-filter: blur(10px);
+            max-width: 90%;
+        }
+
+        /* Game Over Screen */
+        #gameOverScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+
+        #gameOverScreen.visible {
+            display: flex;
+        }
+
+        #gameOverTitle {
+            font-size: 48px;
+            color: #ff4444;
+            text-shadow: 0 0 20px rgba(255, 68, 68, 0.8);
+            margin-bottom: 30px;
+        }
+
+        #finalStats {
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #00ffff;
+            border-radius: 10px;
+            padding: 30px;
+            margin-bottom: 30px;
+            min-width: 300px;
+        }
+
+        #restartButton {
+            padding: 15px 50px;
+            font-size: 20px;
+            background: linear-gradient(135deg, #00ff88, #00aa55);
+            border: none;
+            border-radius: 50px;
+            color: #000;
+            font-weight: bold;
+            cursor: pointer;
+            pointer-events: all;
+            box-shadow: 0 0 30px rgba(0, 255, 136, 0.6);
+            transition: transform 0.2s;
+        }
+
+        #restartButton:hover {
+            transform: scale(1.1);
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        /* Mobile Optimizations */
+        @media (max-width: 768px) {
+            #title {
+                font-size: 48px;
+            }
+
+            #subtitle {
+                font-size: 18px;
+            }
+
+            #startButton {
+                padding: 15px 40px;
+                font-size: 20px;
+            }
+
+            #statsPanel {
+                font-size: 12px;
+                padding: 15px;
+                min-width: 200px;
+                top: 10px;
+                left: 10px;
+            }
+
+            #altitudeScale {
+                width: 80px;
+                right: 5px;
+                padding: 10px 5px;
+            }
+
+            .scale-marker {
+                font-size: 10px;
+            }
+
+            #instructions {
+                font-size: 14px;
+                padding: 0 20px;
+            }
+        }
+
+        @media (orientation: landscape) and (max-height: 500px) {
+            #title {
+                font-size: 36px;
+                margin-bottom: 10px;
+            }
+
+            #subtitle {
+                font-size: 16px;
+                margin-bottom: 20px;
+            }
+
+            #instructions {
+                font-size: 12px;
+            }
+        }
+
+        /* Powerup Styles */
+        .powerup {
+            position: fixed;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.8);
+            z-index: 5;
+            border: 3px solid rgba(255, 255, 255, 0.5);
+            transition: none;
+        }
+
+        .powerup.speed {
+            background: radial-gradient(circle, #00ffff, #0088ff);
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.9);
+        }
+
+        .powerup.fuel {
+            background: radial-gradient(circle, #ffff00, #ff8800);
+            box-shadow: 0 0 30px rgba(255, 255, 0, 0.9);
+        }
+
+        .powerup.mega-thrust {
+            background: radial-gradient(circle, #ff00ff, #ff0088);
+            box-shadow: 0 0 30px rgba(255, 0, 255, 0.9);
+        }
+
+        .powerup.ultra-thrust {
+            background: radial-gradient(circle, #ffaa00, #ff0000);
+            box-shadow: 0 0 30px rgba(255, 170, 0, 0.9);
+            border: 3px solid rgba(255, 215, 0, 0.8);
+        }
+
+        .powerup.hyper-thrust {
+            background: radial-gradient(circle, #00ffaa, #00ff00);
+            box-shadow: 0 0 40px rgba(0, 255, 170, 1);
+            border: 3px solid rgba(0, 255, 0, 0.9);
+            animation: pulse 0.5s infinite;
+        }
+
+        .powerup.quantum-thrust {
+            background: radial-gradient(circle, #ffffff, #00ffff, #ff00ff);
+            box-shadow: 0 0 50px rgba(255, 255, 255, 1);
+            border: 3px solid rgba(255, 255, 255, 1);
+            animation: pulse 0.3s infinite;
+        }
+
+        .powerup-notification {
+            position: fixed;
+            top: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9);
+            border: 2px solid #00ffff;
+            border-radius: 10px;
+            padding: 15px 30px;
+            color: #00ffff;
+            font-size: 18px;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.8);
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.6);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+            z-index: 60;
+        }
+
+        .powerup-notification.visible {
+            opacity: 1;
+        }
+
+        /* Milestone Notification */
+        #milestone {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            border: 3px solid #ffff00;
+            border-radius: 20px;
+            padding: 30px 50px;
+            color: #ffff00;
+            font-size: 32px;
+            font-weight: bold;
+            text-shadow: 0 0 20px rgba(255, 255, 0, 0.8);
+            box-shadow: 0 0 40px rgba(255, 255, 0, 0.6);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+            z-index: 50;
+        }
+
+        #milestone.visible {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- UI Overlay -->
+    <div id="ui">
+        <!-- Stats Panel -->
+        <div id="statsPanel">
+            <div class="stat-row">
+                <span class="stat-label">ALTITUDE:</span>
+                <span class="stat-value" id="altitudeValue">0 m</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">VELOCITY:</span>
+                <span class="stat-value" id="velocityValue">0 m/s</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">THRUST:</span>
+                <span class="stat-value" id="thrustValue">x1</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">ZONE:</span>
+                <span class="stat-value" id="zoneValue">Earth Surface</span>
+            </div>
+        </div>
+
+        <!-- Altitude Scale -->
+        <div id="altitudeScale"></div>
+
+        <!-- Fuel Bar -->
+        <div id="fuelBar">
+            <div id="fuelBarFill"></div>
+            <div id="fuelText">FUEL: 100%</div>
+        </div>
+
+        <!-- Milestone Notification -->
+        <div id="milestone"></div>
+
+        <!-- Powerup Notification -->
+        <div class="powerup-notification" id="powerupNotification"></div>
+    </div>
+
+    <!-- Start Screen -->
+    <div id="startScreen">
+        <svg class="rocket-logo" viewBox="0 0 100 150" xmlns="http://www.w3.org/2000/svg">
+            <!-- Rocket body -->
+            <defs>
+                <linearGradient id="rocketGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" style="stop-color:#e0e0e0;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#999999;stop-opacity:1" />
+                </linearGradient>
+            </defs>
+            <!-- Fins -->
+            <polygon points="30,100 10,130 30,120" fill="#4444ff" stroke="#333" stroke-width="2"/>
+            <polygon points="70,100 90,130 70,120" fill="#4444ff" stroke="#333" stroke-width="2"/>
+            <!-- Body -->
+            <rect x="35" y="40" width="30" height="80" fill="url(#rocketGrad)" stroke="#333" stroke-width="2"/>
+            <!-- Nose -->
+            <polygon points="50,10 35,40 65,40" fill="#ff4444" stroke="#333" stroke-width="2"/>
+            <!-- Window -->
+            <circle cx="50" cy="60" r="8" fill="#88ccff" stroke="#333" stroke-width="2"/>
+            <!-- Details -->
+            <line x1="40" y1="85" x2="60" y2="85" stroke="#666" stroke-width="2"/>
+        </svg>
+        <div class="launch-flame">
+            <svg viewBox="0 0 60 100" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <linearGradient id="flameGrad" x1="50%" y1="0%" x2="50%" y2="100%">
+                        <stop offset="0%" style="stop-color:#ffff00;stop-opacity:1" />
+                        <stop offset="50%" style="stop-color:#ff8800;stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#ff4400;stop-opacity:0" />
+                    </linearGradient>
+                </defs>
+                <ellipse cx="30" cy="20" rx="25" ry="40" fill="url(#flameGrad)"/>
+                <ellipse cx="30" cy="20" rx="15" ry="25" fill="#ffffff" opacity="0.8"/>
+            </svg>
+        </div>
+        <div id="title">ROCKET RUNTIME</div>
+        <div id="subtitle">Journey to Infinity</div>
+        <button id="startButton">LAUNCH</button>
+        <div id="instructions">
+            <strong>CONTROLS:</strong><br>
+            Desktop: HOLD SPACEBAR or MOUSE BUTTON<br>
+            Mobile: TAP AND HOLD SCREEN<br><br>
+            <strong>OBJECTIVE:</strong><br>
+            Reach the highest altitude possible!<br>
+            Manage your fuel wisely to explore the cosmos!
+        </div>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="gameOverScreen">
+        <div id="gameOverTitle">OUT OF FUEL!</div>
+        <div id="finalStats">
+            <div class="stat-row">
+                <span class="stat-label">FINAL ALTITUDE:</span>
+                <span class="stat-value" id="finalAltValue">0 m</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">MAX VELOCITY:</span>
+                <span class="stat-value" id="finalVelValue">0 m/s</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">FARTHEST ZONE:</span>
+                <span class="stat-value" id="finalZoneValue">Earth Surface</span>
+            </div>
+        </div>
+        <button id="restartButton">LAUNCH AGAIN</button>
+    </div>
+
+    <script>
+        // ============================================
+        // GAME CONFIGURATION AND CONSTANTS
+        // ============================================
+        
+        const CONFIG = {
+            // Physics constants
+            GRAVITY: 9.81, // m/s² - Earth's gravity
+            THRUST_POWER: 45, // m/s² - Rocket thrust acceleration
+            FUEL_CONSUMPTION_RATE: 0.15, // % per second when thrusting
+            MAX_FUEL: 100,
+            INITIAL_FUEL: 100,
+            
+            // Visual settings
+            STARS_COUNT: 300,
+            PARTICLE_COUNT: 30,
+            
+            // Random space events
+            COMET_SPAWN_CHANCE: 0.004, // Per frame chance (4x original)
+            SATELLITE_SPAWN_CHANCE: 0.002, // (4x original)
+            METEOR_SPAWN_CHANCE: 0.01, // (5x original - Balanced meteor shower)
+            SPACE_STATION_CHANCE: 0.003, // Increased spawn rate
+            NEBULA_ZONES: [10000000, 78000000000], // Exosphere to Mars
+            AURORA_MAX_ALTITUDE: 600000, // Thermosphere
+            
+            // Powerup settings
+            POWERUP_SPAWN_INTERVAL: 5000, // milliseconds between powerup spawns
+            POWERUP_DURATION: 30000, // how long powerups last
+            SPEED_BOOST_MULTIPLIER: 10, // 10x thrust multiplier
+            MEGA_THRUST_MULTIPLIER: 25, // 25x thrust multiplier
+            ULTRA_THRUST_MULTIPLIER: 100, // 100x thrust multiplier
+            HYPER_THRUST_MULTIPLIER: 1000, // 1000x thrust multiplier - for deep space
+            QUANTUM_THRUST_MULTIPLIER: 10000, // 10000x thrust multiplier - for extreme distances
+            FUEL_REFILL_AMOUNT: 10, // percentage of fuel to add (reduced from 20 to 10)
+            POWERUP_FALL_SPEED: 120, // pixels per second that powerups fall (increased from 80)
+            
+            // Cosmic zones - realistic distances in meters
+            ZONES: [
+                { name: 'Earth Surface', altitude: 0, color: '#4CAF50' },
+                { name: 'Troposphere', altitude: 12000, color: '#87CEEB' },
+                { name: 'Stratosphere', altitude: 50000, color: '#6495ED' },
+                { name: 'Mesosphere', altitude: 85000, color: '#4169E1' },
+                { name: 'Low Earth Orbit', altitude: 200000, color: '#1a1a2e' },
+                { name: 'Thermosphere', altitude: 600000, color: '#191970' },
+                { name: 'Medium Earth Orbit', altitude: 2000000, color: '#16213e' },
+                { name: 'Exosphere', altitude: 10000000, color: '#0a0a1a' },
+                { name: 'Geostationary Orbit', altitude: 35786000, color: '#0f3460' },
+                { name: 'Moon Distance', altitude: 384400000, color: '#1a1a40' },
+                { name: 'Mars Distance', altitude: 78000000000, color: '#8B0000' },
+                { name: 'Asteroid Belt', altitude: 400000000000, color: '#4a4a4a' },
+                { name: 'Jupiter Distance', altitude: 778000000000, color: '#CD853F' },
+                { name: 'Saturn Distance', altitude: 1400000000000, color: '#F4A460' },
+                { name: 'Uranus Distance', altitude: 2900000000000, color: '#4682B4' },
+                { name: 'Neptune Distance', altitude: 4500000000000, color: '#000080' },
+                { name: 'Kuiper Belt', altitude: 7500000000000, color: '#2F4F4F' },
+                { name: 'Oort Cloud', altitude: 15000000000000000, color: '#0a0a0a' },
+                { name: 'Interstellar Space', altitude: 100000000000000000, color: '#000000' },
+                { name: 'Void Between Stars', altitude: 500000000000000000, color: '#000000' },
+                { name: 'Proxima Centauri', altitude: 1000000000000000000, color: '#ff4400' },
+                { name: 'Deep Space Anomaly', altitude: 5000000000000000000, color: '#ff00ff' },
+                { name: 'Galactic Core', altitude: 10000000000000000000, color: '#ffaa00' },
+                { name: 'Beyond Reality', altitude: 50000000000000000000, color: '#00ffff' }
+            ]
+        };
+
+        // ============================================
+        // GAME STATE
+        // ============================================
+        
+        class GameState {
+            constructor() {
+                this.reset();
+            }
+
+            reset() {
+                this.altitude = 0; // meters
+                this.velocity = 0; // m/s
+                this.acceleration = 0; // m/s²
+                this.fuel = CONFIG.INITIAL_FUEL;
+                this.maxAltitude = 0;
+                this.maxVelocity = 0;
+                this.isThrusting = false;
+                this.gameOver = false;
+                this.gameStarted = false;
+                this.currentZoneIndex = 0;
+                this.lastMilestone = null;
+                
+                // Camera offset for scrolling background
+                this.cameraOffset = 0;
+                
+                // Stack tracking with individual timers for each powerup
+                this.thrustStacks = {
+                    speed10x: [],    // Array of end times for each 10x stack
+                    mega25x: [],     // Array of end times for each 25x stack
+                    ultra100x: [],   // Array of end times for each 100x stack
+                    hyper1000x: [],  // Array of end times for each 1000x stack
+                    quantum10000x: [] // Array of end times for each 10000x stack
+                };
+            }
+
+            update(deltaTime) {
+                if (this.gameOver || !this.gameStarted) return;
+
+                // Remove expired powerup stacks
+                const currentTime = Date.now();
+                this.thrustStacks.speed10x = this.thrustStacks.speed10x.filter(endTime => endTime > currentTime);
+                this.thrustStacks.mega25x = this.thrustStacks.mega25x.filter(endTime => endTime > currentTime);
+                this.thrustStacks.ultra100x = this.thrustStacks.ultra100x.filter(endTime => endTime > currentTime);
+                this.thrustStacks.hyper1000x = this.thrustStacks.hyper1000x.filter(endTime => endTime > currentTime);
+                this.thrustStacks.quantum10000x = this.thrustStacks.quantum10000x.filter(endTime => endTime > currentTime);
+
+                // Calculate total thrust multiplier from ALL active stacks
+                let totalMultiplier = 1;
+                
+                // Each stack contributes exponentially: base^stackCount
+                const speed10xCount = this.thrustStacks.speed10x.length;
+                const mega25xCount = this.thrustStacks.mega25x.length;
+                const ultra100xCount = this.thrustStacks.ultra100x.length;
+                const hyper1000xCount = this.thrustStacks.hyper1000x.length;
+                const quantum10000xCount = this.thrustStacks.quantum10000x.length;
+                
+                if (speed10xCount > 0) {
+                    totalMultiplier *= Math.pow(CONFIG.SPEED_BOOST_MULTIPLIER, speed10xCount);
+                }
+                if (mega25xCount > 0) {
+                    totalMultiplier *= Math.pow(CONFIG.MEGA_THRUST_MULTIPLIER, mega25xCount);
+                }
+                if (ultra100xCount > 0) {
+                    totalMultiplier *= Math.pow(CONFIG.ULTRA_THRUST_MULTIPLIER, ultra100xCount);
+                }
+                if (hyper1000xCount > 0) {
+                    totalMultiplier *= Math.pow(CONFIG.HYPER_THRUST_MULTIPLIER, hyper1000xCount);
+                }
+                if (quantum10000xCount > 0) {
+                    totalMultiplier *= Math.pow(CONFIG.QUANTUM_THRUST_MULTIPLIER, quantum10000xCount);
+                }
+                
+                const currentThrustPower = CONFIG.THRUST_POWER * totalMultiplier;
+
+                // Calculate acceleration based on thrust and gravity
+                // Gravity decreases with altitude (inverse square law)
+                const earthRadius = 6371000; // meters
+                const distanceFromCenter = earthRadius + this.altitude;
+                const gravityAtAltitude = CONFIG.GRAVITY * Math.pow(earthRadius / distanceFromCenter, 2);
+                
+                this.acceleration = this.isThrusting ? currentThrustPower - gravityAtAltitude : -gravityAtAltitude;
+
+                // Update velocity
+                this.velocity += this.acceleration * deltaTime;
+
+                // Update altitude
+                this.altitude += this.velocity * deltaTime;
+
+                // Update camera offset for scrolling background (velocity-based)
+                this.cameraOffset += this.velocity * deltaTime * 0.001; // Scale for visual effect
+
+                // Prevent going below ground - game over if launched and returned to 0
+                if (this.altitude < 0) {
+                    this.altitude = 0;
+                    this.velocity = 0;
+                    this.cameraOffset = 0;
+                }
+                
+                // Game over if launched and crashed back to ground
+                if (this.altitude <= 0 && this.maxAltitude > 100) {
+                    this.gameOver = true;
+                }
+
+                // Consume fuel when thrusting - increases with velocity
+                if (this.isThrusting && this.fuel > 0) {
+                    // Base consumption + velocity-based consumption (more speed = more fuel)
+                    const velocityFactor = 1 + Math.min(this.velocity / 10000, 2); // Up to 3x consumption at high speeds
+                    const consumption = CONFIG.FUEL_CONSUMPTION_RATE * deltaTime * velocityFactor;
+                    this.fuel -= consumption;
+                    if (this.fuel <= 0) {
+                        this.fuel = 0;
+                        this.gameOver = true;
+                    }
+                }
+
+                // Track max values
+                this.maxAltitude = Math.max(this.maxAltitude, this.altitude);
+                this.maxVelocity = Math.max(this.maxVelocity, this.velocity);
+
+                // Update current zone
+                this.updateZone();
+            }
+
+            updateZone() {
+                for (let i = CONFIG.ZONES.length - 1; i >= 0; i--) {
+                    if (this.altitude >= CONFIG.ZONES[i].altitude) {
+                        if (i > this.currentZoneIndex) {
+                            this.currentZoneIndex = i;
+                            this.lastMilestone = CONFIG.ZONES[i].name;
+                        }
+                        break;
+                    }
+                }
+            }
+
+            startThrust() {
+                if (this.fuel > 0 && this.gameStarted && !this.gameOver) {
+                    this.isThrusting = true;
+                }
+            }
+
+            stopThrust() {
+                this.isThrusting = false;
+            }
+
+            activateSpeedBoost() {
+                const currentTime = Date.now();
+                const endTime = currentTime + CONFIG.POWERUP_DURATION;
+                this.thrustStacks.speed10x.push(endTime);
+            }
+
+            activateFuelRefill() {
+                this.fuel = Math.min(this.fuel + CONFIG.FUEL_REFILL_AMOUNT, CONFIG.MAX_FUEL);
+            }
+
+            activateMegaThrust() {
+                const currentTime = Date.now();
+                const endTime = currentTime + CONFIG.POWERUP_DURATION;
+                this.thrustStacks.mega25x.push(endTime);
+            }
+
+            activateUltraThrust() {
+                const currentTime = Date.now();
+                const endTime = currentTime + CONFIG.POWERUP_DURATION;
+                this.thrustStacks.ultra100x.push(endTime);
+            }
+
+            activateHyperThrust() {
+                const currentTime = Date.now();
+                const endTime = currentTime + CONFIG.POWERUP_DURATION;
+                this.thrustStacks.hyper1000x.push(endTime);
+            }
+
+            activateQuantumThrust() {
+                const currentTime = Date.now();
+                const endTime = currentTime + CONFIG.POWERUP_DURATION;
+                this.thrustStacks.quantum10000x.push(endTime);
+            }
+
+            getCurrentThrustMultiplier() {
+                // Calculate total multiplier from all active stacks
+                let totalMultiplier = 1;
+                
+                const speed10xCount = this.thrustStacks.speed10x.length;
+                const mega25xCount = this.thrustStacks.mega25x.length;
+                const ultra100xCount = this.thrustStacks.ultra100x.length;
+                const hyper1000xCount = this.thrustStacks.hyper1000x.length;
+                const quantum10000xCount = this.thrustStacks.quantum10000x.length;
+                
+                if (speed10xCount > 0) {
+                    totalMultiplier *= Math.pow(CONFIG.SPEED_BOOST_MULTIPLIER, speed10xCount);
+                }
+                if (mega25xCount > 0) {
+                    totalMultiplier *= Math.pow(CONFIG.MEGA_THRUST_MULTIPLIER, mega25xCount);
+                }
+                if (ultra100xCount > 0) {
+                    totalMultiplier *= Math.pow(CONFIG.ULTRA_THRUST_MULTIPLIER, ultra100xCount);
+                }
+                if (hyper1000xCount > 0) {
+                    totalMultiplier *= Math.pow(CONFIG.HYPER_THRUST_MULTIPLIER, hyper1000xCount);
+                }
+                if (quantum10000xCount > 0) {
+                    totalMultiplier *= Math.pow(CONFIG.QUANTUM_THRUST_MULTIPLIER, quantum10000xCount);
+                }
+                
+                return Math.floor(totalMultiplier);
+            }
+
+            getTotalStackCount() {
+                return this.thrustStacks.speed10x.length + 
+                       this.thrustStacks.mega25x.length + 
+                       this.thrustStacks.ultra100x.length +
+                       this.thrustStacks.hyper1000x.length +
+                       this.thrustStacks.quantum10000x.length; 
+                       this.thrustStacks.mega25x.length + 
+                       this.thrustStacks.ultra100x.length;
+            }
+        }
+
+        // ============================================
+        // AUDIO SYSTEM
+        // ============================================
+        
+        class AudioSystem {
+            constructor() {
+                this.context = null;
+                this.thrustOscillator = null;
+                this.thrustGain = null;
+                this.initialized = false;
+            }
+
+            init() {
+                try {
+                    this.context = new (window.AudioContext || window.webkitAudioContext)();
+                    this.initialized = true;
+                } catch (e) {
+                    console.log('Audio not supported');
+                }
+            }
+
+            playThrustSound() {
+                if (!this.initialized || this.thrustOscillator) return;
+
+                try {
+                    // Create oscillator for engine sound
+                    this.thrustOscillator = this.context.createOscillator();
+                    this.thrustGain = this.context.createGain();
+
+                    this.thrustOscillator.type = 'sawtooth';
+                    this.thrustOscillator.frequency.setValueAtTime(80, this.context.currentTime);
+                    
+                    this.thrustGain.gain.setValueAtTime(0.1, this.context.currentTime);
+                    
+                    this.thrustOscillator.connect(this.thrustGain);
+                    this.thrustGain.connect(this.context.destination);
+                    
+                    this.thrustOscillator.start();
+                } catch (e) {
+                    console.log('Error playing thrust sound');
+                }
+            }
+
+            updateThrustSound(velocity, thrustMultiplier) {
+                if (!this.initialized || !this.thrustOscillator) return;
+
+                try {
+                    // More sound type variations based on thrust multiplier thresholds
+                    let soundType = 'sawtooth';
+                    let basePitch = 80;
+                    
+                    if (thrustMultiplier >= 50000) {
+                        soundType = 'sine';
+                        basePitch = 280;
+                    } else if (thrustMultiplier >= 20000) {
+                        soundType = 'triangle';
+                        basePitch = 240;
+                    } else if (thrustMultiplier >= 10000) {
+                        soundType = 'sine';
+                        basePitch = 200;
+                    } else if (thrustMultiplier >= 5000) {
+                        soundType = 'square';
+                        basePitch = 180;
+                    } else if (thrustMultiplier >= 2000) {
+                        soundType = 'triangle';
+                        basePitch = 160;
+                    } else if (thrustMultiplier >= 1000) {
+                        soundType = 'triangle';
+                        basePitch = 150;
+                    } else if (thrustMultiplier >= 500) {
+                        soundType = 'square';
+                        basePitch = 130;
+                    } else if (thrustMultiplier >= 200) {
+                        soundType = 'sawtooth';
+                        basePitch = 110;
+                    } else if (thrustMultiplier >= 100) {
+                        soundType = 'square';
+                        basePitch = 100;
+                    } else if (thrustMultiplier >= 50) {
+                        soundType = 'sawtooth';
+                        basePitch = 90;
+                    }
+                    
+                    // Increase pitch with velocity
+                    const velocityPitch = basePitch + Math.min(velocity / 50, 150);
+                    
+                    // Keep volume constant
+                    const volume = 0.1;
+                    
+                    this.thrustOscillator.type = soundType;
+                    this.thrustOscillator.frequency.setValueAtTime(velocityPitch, this.context.currentTime);
+                    this.thrustGain.gain.setValueAtTime(volume, this.context.currentTime);
+                } catch (e) {}
+            }
+
+            stopThrustSound() {
+                if (this.thrustOscillator) {
+                    try {
+                        this.thrustGain.gain.exponentialRampToValueAtTime(0.01, this.context.currentTime + 0.1);
+                        this.thrustOscillator.stop(this.context.currentTime + 0.1);
+                    } catch (e) {}
+                    this.thrustOscillator = null;
+                    this.thrustGain = null;
+                }
+            }
+
+            playAmbientMusic() {
+                if (!this.initialized || this.musicOscillators) return;
+
+                try {
+                    this.musicOscillators = [];
+                    this.musicGains = [];
+                    
+                    // A minor scale for melody: A, B, C, D, E, F, G
+                    const scale = [220, 246.94, 261.63, 293.66, 329.63, 349.23, 392];
+                    
+                    // Chord progression - A minor
+                    const chordNotes = [220, 261.63, 329.63, 440]; // A3, C4, E4, A4
+                    
+                    // Create sustained chord
+                    chordNotes.forEach((freq, i) => {
+                        const osc = this.context.createOscillator();
+                        const gain = this.context.createGain();
+                        
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(freq, this.context.currentTime);
+                        
+                        const baseVolume = 0.06;
+                        gain.gain.setValueAtTime(0, this.context.currentTime);
+                        gain.gain.linearRampToValueAtTime(baseVolume, this.context.currentTime + 2);
+                        
+                        osc.connect(gain);
+                        gain.connect(this.context.destination);
+                        osc.start();
+                        
+                        this.musicOscillators.push(osc);
+                        this.musicGains.push(gain);
+                    });
+                    
+                    // Create melody line that plays random notes from scale
+                    const playMelodyNote = () => {
+                        if (!this.musicOscillators) return;
+                        
+                        const noteIndex = Math.floor(Math.random() * scale.length);
+                        const freq = scale[noteIndex] * 2; // One octave higher
+                        const duration = [0.4, 0.6, 0.8, 1.2][Math.floor(Math.random() * 4)];
+                        
+                        const osc = this.context.createOscillator();
+                        const gain = this.context.createGain();
+                        
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(freq, this.context.currentTime);
+                        
+                        gain.gain.setValueAtTime(0, this.context.currentTime);
+                        gain.gain.linearRampToValueAtTime(0.04, this.context.currentTime + 0.05);
+                        gain.gain.linearRampToValueAtTime(0, this.context.currentTime + duration);
+                        
+                        osc.connect(gain);
+                        gain.connect(this.context.destination);
+                        
+                        osc.start();
+                        osc.stop(this.context.currentTime + duration);
+                        
+                        // Schedule next note
+                        const nextDelay = duration * 1000 + Math.random() * 500;
+                        setTimeout(playMelodyNote, nextDelay);
+                    };
+                    
+                    // Start melody after 2 seconds
+                    setTimeout(playMelodyNote, 2000);
+                    
+                } catch (e) {
+                    console.log('Error playing ambient music');
+                }
+            }
+
+            stopAmbientMusic() {
+                if (this.musicOscillators) {
+                    try {
+                        this.musicGains.forEach(gain => {
+                            gain.gain.linearRampToValueAtTime(0, this.context.currentTime + 1);
+                        });
+                        if (this.musicIntervals) {
+                            this.musicIntervals.forEach(interval => clearInterval(interval));
+                            this.musicIntervals = null;
+                        }
+                        setTimeout(() => {
+                            if (this.musicOscillators) {
+                                this.musicOscillators.forEach(osc => osc.stop());
+                                this.musicOscillators = null;
+                                this.musicGains = null;
+                            }
+                        }, 1000);
+                    } catch (e) {}
+                }
+            }
+
+            playMilestoneSound() {
+                if (!this.initialized) return;
+
+                try {
+                    const osc = this.context.createOscillator();
+                    const gain = this.context.createGain();
+
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(800, this.context.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(400, this.context.currentTime + 0.3);
+                    
+                    gain.gain.setValueAtTime(0.2, this.context.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, this.context.currentTime + 0.3);
+                    
+                    osc.connect(gain);
+                    gain.connect(this.context.destination);
+                    
+                    osc.start();
+                    osc.stop(this.context.currentTime + 0.3);
+                } catch (e) {
+                    console.log('Error playing milestone sound');
+                }
+            }
+
+            playGameOverSound() {
+                if (!this.initialized) return;
+
+                try {
+                    const osc = this.context.createOscillator();
+                    const gain = this.context.createGain();
+
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(400, this.context.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(100, this.context.currentTime + 0.5);
+                    
+                    gain.gain.setValueAtTime(0.2, this.context.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, this.context.currentTime + 0.5);
+                    
+                    osc.connect(gain);
+                    gain.connect(this.context.destination);
+                    
+                    osc.start();
+                    osc.stop(this.context.currentTime + 0.5);
+                } catch (e) {
+                    console.log('Error playing game over sound');
+                }
+            }
+        }
+
+        // ============================================
+        // PARTICLE SYSTEM
+        // ============================================
+        
+        class Particle {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.vx = (Math.random() - 0.5) * 4;
+                this.vy = Math.random() * 3 + 2;
+                this.life = 1;
+                this.decay = Math.random() * 0.02 + 0.01;
+                this.size = Math.random() * 3 + 2;
+                this.color = `hsl(${Math.random() * 60 + 15}, 100%, 60%)`;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.life -= this.decay;
+                this.vy += 0.1; // Gravity effect on particles
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.globalAlpha = this.life;
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            isDead() {
+                return this.life <= 0;
+            }
+        }
+
+        class ColoredParticle {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.vx = (Math.random() - 0.5) * 6;
+                this.vy = Math.random() * 4 + 3;
+                this.life = 1;
+                this.decay = Math.random() * 0.015 + 0.01;
+                this.size = Math.random() * 4 + 3;
+                this.color = color;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.life -= this.decay;
+                this.vy += 0.15; // Gravity effect
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.globalAlpha = this.life * 0.8;
+                ctx.fillStyle = this.color;
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            isDead() {
+                return this.life <= 0;
+            }
+        }
+
+        class ParticleSystem {
+            constructor() {
+                this.particles = [];
+            }
+
+            emit(x, y, count = 5) {
+                for (let i = 0; i < count; i++) {
+                    this.particles.push(new Particle(x, y));
+                }
+            }
+
+            emitColored(x, y, count = 5) {
+                const colors = ['#00ffff', '#00ccff', '#0088ff', '#ff00ff', '#cc00ff', '#8800ff'];
+                for (let i = 0; i < count; i++) {
+                    const color = colors[Math.floor(Math.random() * colors.length)];
+                    this.particles.push(new ColoredParticle(x, y, color));
+                }
+            }
+
+            update() {
+                this.particles = this.particles.filter(p => {
+                    p.update();
+                    return !p.isDead();
+                });
+            }
+
+            draw(ctx) {
+                this.particles.forEach(p => p.draw(ctx));
+            }
+        }
+
+        // ============================================
+        // STAR FIELD
+        // ============================================
+        
+        class Star {
+            constructor(canvas) {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.size = Math.random() * 2;
+                this.brightness = Math.random();
+                this.twinkleSpeed = Math.random() * 0.02 + 0.01;
+            }
+
+            update() {
+                this.brightness += this.twinkleSpeed;
+                if (this.brightness > 1 || this.brightness < 0) {
+                    this.twinkleSpeed *= -1;
+                }
+            }
+
+            draw(ctx, altitude) {
+                // Stars become more visible at higher altitudes
+                const visibilityFactor = Math.min(altitude / 50000, 1);
+                ctx.save();
+                ctx.globalAlpha = this.brightness * visibilityFactor;
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        // ============================================
+        // SPACE EVENTS
+        // ============================================
+
+        class Comet {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.x = Math.random() * canvas.width;
+                this.y = -50;
+                this.vx = (Math.random() - 0.5) * 3;
+                this.vy = Math.random() * 2 + 2;
+                this.size = Math.random() * 4 + 3;
+                this.tailLength = 100;
+                this.life = 1;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                if (this.y > this.canvas.height + 50) this.life = 0;
+            }
+
+            draw(ctx) {
+                ctx.save();
+                
+                // Tail
+                const gradient = ctx.createLinearGradient(this.x, this.y, this.x - this.vx * 30, this.y - this.vy * 30);
+                gradient.addColorStop(0, 'rgba(200, 220, 255, 0.8)');
+                gradient.addColorStop(0.5, 'rgba(150, 180, 255, 0.4)');
+                gradient.addColorStop(1, 'rgba(100, 150, 255, 0)');
+                
+                ctx.strokeStyle = gradient;
+                ctx.lineWidth = this.size * 2;
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(this.x - this.vx * 30, this.y - this.vy * 30);
+                ctx.stroke();
+                
+                // Core
+                ctx.fillStyle = '#ffffff';
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = '#aaccff';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.restore();
+            }
+
+            isDead() {
+                return this.life <= 0;
+            }
+        }
+
+        class Satellite {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.vx = (Math.random() - 0.5) * 4;
+                this.size = 8;
+                this.angle = Math.random() * Math.PI * 2;
+                this.rotationSpeed = (Math.random() - 0.5) * 0.1;
+                this.life = 1;
+                this.blinkTimer = 0;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.angle += this.rotationSpeed;
+                this.blinkTimer += 0.1;
+                if (this.x < -50 || this.x > this.canvas.width + 50) this.life = 0;
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.angle);
+                
+                // Body
+                ctx.fillStyle = '#cccccc';
+                ctx.fillRect(-this.size/2, -this.size/2, this.size, this.size);
+                
+                // Solar panels
+                ctx.fillStyle = '#4444aa';
+                ctx.fillRect(-this.size * 1.5, -this.size/4, this.size * 0.8, this.size/2);
+                ctx.fillRect(this.size * 0.7, -this.size/4, this.size * 0.8, this.size/2);
+                
+                // Blinking light
+                if (Math.sin(this.blinkTimer) > 0.5) {
+                    ctx.fillStyle = '#ff0000';
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                ctx.restore();
+            }
+
+            isDead() {
+                return this.life <= 0;
+            }
+        }
+
+        class SpaceStation {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.rotation = 0;
+                this.life = 20; // 20 seconds lifetime
+                this.modules = [];
+                
+                // Create modular station design
+                for (let i = 0; i < 6; i++) {
+                    this.modules.push({
+                        angle: (Math.PI * 2 / 6) * i,
+                        distance: 40,
+                        size: 15,
+                        color: i % 2 === 0 ? '#cccccc' : '#999999'
+                    });
+                }
+                
+                this.solarPanels = [
+                    { angle: 0, length: 60, width: 20 },
+                    { angle: Math.PI, length: 60, width: 20 }
+                ];
+                
+                this.lights = [];
+                for (let i = 0; i < 8; i++) {
+                    this.lights.push({
+                        angle: (Math.PI * 2 / 8) * i,
+                        distance: 35,
+                        phase: Math.random() * Math.PI * 2
+                    });
+                }
+            }
+
+            update(deltaTime) {
+                this.rotation += deltaTime * 0.3;
+                this.lights.forEach(light => light.phase += deltaTime * 3);
+                this.life -= deltaTime;
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                
+                // Solar panels (behind)
+                this.solarPanels.forEach(panel => {
+                    ctx.save();
+                    ctx.rotate(panel.angle + this.rotation * 0.5);
+                    
+                    const gradient = ctx.createLinearGradient(-panel.length, 0, panel.length, 0);
+                    gradient.addColorStop(0, '#1a3a5a');
+                    gradient.addColorStop(0.5, '#2a5a8a');
+                    gradient.addColorStop(1, '#1a3a5a');
+                    
+                    ctx.fillStyle = gradient;
+                    ctx.fillRect(-panel.length, -panel.width/2, panel.length * 2, panel.width);
+                    
+                    // Panel grid
+                    ctx.strokeStyle = '#0a2a4a';
+                    ctx.lineWidth = 1;
+                    for (let i = -panel.length; i < panel.length; i += 10) {
+                        ctx.beginPath();
+                        ctx.moveTo(i, -panel.width/2);
+                        ctx.lineTo(i, panel.width/2);
+                        ctx.stroke();
+                    }
+                    
+                    ctx.restore();
+                });
+                
+                // Central hub
+                ctx.rotate(this.rotation);
+                
+                const hubGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, 25);
+                hubGradient.addColorStop(0, '#ffffff');
+                hubGradient.addColorStop(0.5, '#dddddd');
+                hubGradient.addColorStop(1, '#999999');
+                
+                ctx.fillStyle = hubGradient;
+                ctx.beginPath();
+                ctx.arc(0, 0, 25, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.strokeStyle = '#666666';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                // Modules
+                this.modules.forEach(module => {
+                    const x = Math.cos(module.angle) * module.distance;
+                    const y = Math.sin(module.angle) * module.distance;
+                    
+                    ctx.fillStyle = module.color;
+                    ctx.fillRect(x - module.size/2, y - module.size/2, module.size, module.size);
+                    
+                    ctx.strokeStyle = '#555555';
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(x - module.size/2, y - module.size/2, module.size, module.size);
+                    
+                    // Windows
+                    ctx.fillStyle = '#ffff88';
+                    ctx.fillRect(x - 4, y - 4, 3, 3);
+                    ctx.fillRect(x + 1, y - 4, 3, 3);
+                });
+                
+                // Blinking lights
+                this.lights.forEach(light => {
+                    const x = Math.cos(light.angle) * light.distance;
+                    const y = Math.sin(light.angle) * light.distance;
+                    const brightness = (Math.sin(light.phase) + 1) * 0.5;
+                    
+                    ctx.fillStyle = `rgba(0, 255, 255, ${brightness})`;
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = '#00ffff';
+                    ctx.beginPath();
+                    ctx.arc(x, y, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                });
+                
+                // Communication dish
+                ctx.fillStyle = '#aaaaaa';
+                ctx.beginPath();
+                ctx.ellipse(0, -30, 8, 12, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#777777';
+                ctx.stroke();
+                
+                ctx.restore();
+            }
+
+            isDead() {
+                return this.life <= 0;
+            }
+        }
+
+        class Meteor {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.x = Math.random() * canvas.width;
+                this.y = -30;
+                this.vx = (Math.random() - 0.5) * 5;
+                this.vy = Math.random() * 5 + 5;
+                this.size = Math.random() * 5 + 4; // Larger meteors
+                this.rotation = Math.random() * Math.PI * 2;
+                this.rotationSpeed = (Math.random() - 0.5) * 0.2;
+                this.life = 1;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.rotation += this.rotationSpeed;
+                if (this.y > this.canvas.height + 50) this.life = 0;
+            }
+
+            draw(ctx) {
+                ctx.save();
+                
+                // Brighter, longer trail
+                const gradient = ctx.createLinearGradient(this.x, this.y, this.x - this.vx * 15, this.y - this.vy * 15);
+                gradient.addColorStop(0, 'rgba(255, 200, 100, 1)');
+                gradient.addColorStop(0.5, 'rgba(255, 150, 50, 0.8)');
+                gradient.addColorStop(1, 'rgba(255, 100, 0, 0)');
+                
+                ctx.strokeStyle = gradient;
+                ctx.lineWidth = this.size * 1.5;
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(this.x - this.vx * 15, this.y - this.vy * 15);
+                ctx.stroke();
+                
+                // Glowing rock
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotation);
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = '#ff6600';
+                ctx.fillStyle = '#ff8844';
+                ctx.beginPath();
+                ctx.moveTo(0, -this.size);
+                ctx.lineTo(this.size, this.size);
+                ctx.lineTo(-this.size, this.size);
+                ctx.closePath();
+                ctx.fill();
+                
+                ctx.restore();
+            }
+
+            isDead() {
+                return this.life <= 0;
+            }
+        }
+
+        class Aurora {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.waves = [];
+                for (let i = 0; i < 5; i++) {
+                    this.waves.push({
+                        offset: Math.random() * Math.PI * 2,
+                        speed: Math.random() * 0.02 + 0.01,
+                        amplitude: Math.random() * 50 + 30,
+                        y: canvas.height * 0.3 + i * 20,
+                        color: i % 2 === 0 ? 'rgba(0, 255, 150, 0.3)' : 'rgba(100, 200, 255, 0.3)'
+                    });
+                }
+            }
+
+            update() {
+                this.waves.forEach(wave => {
+                    wave.offset += wave.speed;
+                });
+            }
+
+            draw(ctx) {
+                ctx.save();
+                this.waves.forEach(wave => {
+                    ctx.strokeStyle = wave.color;
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    for (let x = 0; x < this.canvas.width; x += 5) {
+                        const y = wave.y + Math.sin(x * 0.01 + wave.offset) * wave.amplitude;
+                        if (x === 0) ctx.moveTo(x, y);
+                        else ctx.lineTo(x, y);
+                    }
+                    ctx.stroke();
+                });
+                ctx.restore();
+            }
+        }
+
+        class Wormhole {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.size = 0;
+                this.maxSize = 80;
+                this.rotation = 0;
+                this.life = 3; // seconds
+            }
+
+            update(deltaTime) {
+                this.size = Math.min(this.size + deltaTime * 30, this.maxSize);
+                this.rotation += deltaTime * 2;
+                this.life -= deltaTime;
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotation);
+                
+                // Swirling vortex
+                for (let i = 0; i < 5; i++) {
+                    const radius = this.size * (1 - i * 0.15);
+                    const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
+                    gradient.addColorStop(0, 'rgba(138, 43, 226, 0.8)');
+                    gradient.addColorStop(0.5, 'rgba(75, 0, 130, 0.5)');
+                    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                    
+                    ctx.fillStyle = gradient;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, radius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                ctx.restore();
+            }
+
+            isDead() {
+                return this.life <= 0;
+            }
+        }
+
+        class Pulsar {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.pulsePhase = 0;
+                this.life = 5;
+            }
+
+            update(deltaTime) {
+                this.pulsePhase += deltaTime * 5;
+                this.life -= deltaTime;
+            }
+
+            draw(ctx) {
+                ctx.save();
+                const intensity = (Math.sin(this.pulsePhase) + 1) * 0.5;
+                const size = 15 + intensity * 20;
+                
+                ctx.shadowBlur = 30;
+                ctx.shadowColor = '#00ffff';
+                ctx.fillStyle = `rgba(0, 255, 255, ${intensity})`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, size, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Beam lines
+                ctx.strokeStyle = `rgba(0, 255, 255, ${intensity * 0.5})`;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y - size * 3);
+                ctx.lineTo(this.x, this.y + size * 3);
+                ctx.stroke();
+                
+                ctx.restore();
+            }
+
+            isDead() {
+                return this.life <= 0;
+            }
+        }
+
+        class BlackHole {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.size = 60;
+                this.accretionRotation = 0;
+                this.life = 4;
+            }
+
+            update(deltaTime) {
+                this.accretionRotation += deltaTime * 3;
+                this.life -= deltaTime;
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                
+                // Accretion disk
+                ctx.rotate(this.accretionRotation);
+                for (let i = 0; i < 3; i++) {
+                    const radius = this.size * (1.5 + i * 0.3);
+                    ctx.strokeStyle = `rgba(255, ${150 - i * 30}, 0, ${0.6 - i * 0.15})`;
+                    ctx.lineWidth = 8;
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, radius, radius * 0.3, 0, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+                
+                // Event horizon (pure black)
+                ctx.fillStyle = '#000000';
+                ctx.beginPath();
+                ctx.arc(0, 0, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.restore();
+            }
+
+            isDead() {
+                return this.life <= 0;
+            }
+        }
+
+        class ShootingStar {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height * 0.5;
+                this.vx = (Math.random() + 0.5) * 8;
+                this.vy = (Math.random() + 0.5) * 4;
+                this.length = Math.random() * 60 + 40;
+                this.brightness = Math.random() * 0.5 + 0.5;
+                this.life = 1;
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.life -= 0.02;
+                if (this.x > this.canvas.width + 100 || this.y > this.canvas.height + 100) {
+                    this.life = 0;
+                }
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.globalAlpha = this.life * this.brightness * 1.3; // Slightly more visible
+                
+                const gradient = ctx.createLinearGradient(this.x, this.y, this.x - this.vx * 6, this.y - this.vy * 6);
+                gradient.addColorStop(0, '#ffffff');
+                gradient.addColorStop(0.3, '#eeffff');
+                gradient.addColorStop(0.6, '#aaccff');
+                gradient.addColorStop(1, 'rgba(170, 204, 255, 0)');
+                
+                ctx.strokeStyle = gradient;
+                ctx.lineWidth = 2.5; // Slightly thicker
+                ctx.shadowBlur = 3;
+                ctx.shadowColor = '#ffffff';
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(this.x - this.vx * 6, this.y - this.vy * 6);
+                ctx.stroke();
+                
+                ctx.restore();
+            }
+
+            isDead() {
+                return this.life <= 0;
+            }
+        }
+
+        class CosmicDust {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.particles = [];
+                for (let i = 0; i < 30; i++) {
+                    this.particles.push({
+                        x: Math.random() * canvas.width,
+                        y: Math.random() * canvas.height,
+                        vx: (Math.random() - 0.5) * 0.5,
+                        vy: Math.random() * 0.3 + 0.2,
+                        size: Math.random() * 2 + 1,
+                        alpha: Math.random() * 0.3 + 0.1
+                    });
+                }
+            }
+
+            update() {
+                this.particles.forEach(p => {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    if (p.y > this.canvas.height) p.y = 0;
+                    if (p.x < 0) p.x = this.canvas.width;
+                    if (p.x > this.canvas.width) p.x = 0;
+                });
+            }
+
+            draw(ctx) {
+                ctx.save();
+                this.particles.forEach(p => {
+                    ctx.globalAlpha = p.alpha;
+                    ctx.fillStyle = '#ccaa88';
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+                ctx.restore();
+            }
+        }
+
+        class Nebula {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.x = canvas.width / 2;
+                this.y = canvas.height / 2;
+                this.particles = [];
+                for (let i = 0; i < 50; i++) {
+                    this.particles.push({
+                        x: (Math.random() - 0.5) * canvas.width * 0.8,
+                        y: (Math.random() - 0.5) * canvas.height * 0.8,
+                        size: Math.random() * 100 + 50,
+                        color: Math.random() > 0.5 ? 'rgba(255, 100, 200, 0.1)' : 'rgba(100, 150, 255, 0.1)',
+                        drift: (Math.random() - 0.5) * 0.5
+                    });
+                }
+            }
+
+            update() {
+                this.particles.forEach(p => {
+                    p.x += p.drift;
+                    if (p.x > this.canvas.width / 2) p.x = -this.canvas.width / 2;
+                    if (p.x < -this.canvas.width / 2) p.x = this.canvas.width / 2;
+                });
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                this.particles.forEach(p => {
+                    const gradient = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size);
+                    gradient.addColorStop(0, p.color);
+                    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                    ctx.fillStyle = gradient;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+                ctx.restore();
+            }
+        }
+
+        // ============================================
+        // POWERUP SYSTEM
+        // ============================================
+        
+        class Powerup {
+            constructor(canvas, type) {
+                this.type = type; // 'speed', 'fuel', 'mega-thrust'
+                this.canvas = canvas;
+                this.x = canvas.width / 2;
+                this.y = -60; // Start above the screen
+                this.width = 40;
+                this.height = 40;
+                this.speed = CONFIG.POWERUP_FALL_SPEED; // pixels per second
+                this.collected = false;
+                this.element = null;
+                this.opacity = 1;
+                this.scale = 1;
+                this.createDOMElement();
+            }
+
+            createDOMElement() {
+                this.element = document.createElement('div');
+                this.element.className = `powerup ${this.type}`;
+                
+                // Set icon based on type
+                if (this.type === 'speed') {
+                    this.element.innerHTML = '⚡';
+                    this.element.title = 'Speed Boost x10';
+                } else if (this.type === 'fuel') {
+                    this.element.innerHTML = '⛽';
+                    this.element.title = 'Fuel Refill +20%';
+                } else if (this.type === 'mega-thrust') {
+                    this.element.innerHTML = '🚀';
+                    this.element.title = 'Mega Thrust x25';
+                } else if (this.type === 'ultra-thrust') {
+                    this.element.innerHTML = '💥';
+                    this.element.title = 'Ultra Thrust x100';
+                } else if (this.type === 'hyper-thrust') {
+                    this.element.innerHTML = '⚛️';
+                    this.element.title = 'Hyper Thrust x1000';
+                } else if (this.type === 'quantum-thrust') {
+                    this.element.innerHTML = '🌌';
+                    this.element.title = 'Quantum Thrust x10000';
+                }
+                
+                // Set initial position
+                this.updateDOMPosition();
+                document.body.appendChild(this.element);
+            }
+
+            updateDOMPosition() {
+                if (!this.element) return;
+                
+                this.element.style.left = `${this.x - this.width / 2}px`;
+                this.element.style.top = `${this.y - this.height / 2}px`;
+                this.element.style.opacity = this.opacity;
+                this.element.style.transform = `scale(${this.scale})`;
+            }
+
+            update(deltaTime) {
+                if (this.collected) {
+                    // Handle collection animation
+                    this.scale += deltaTime * 6; // Grow quickly
+                    this.opacity -= deltaTime * 3; // Fade out
+                    this.updateDOMPosition();
+                    
+                    if (this.opacity <= 0) {
+                        this.destroy();
+                    }
+                    return;
+                }
+                
+                // Move downward
+                this.y += this.speed * deltaTime;
+                
+                // Update DOM position
+                this.updateDOMPosition();
+                
+                // Check if off screen
+                if (this.y > this.canvas.height + 100) {
+                    this.destroy();
+                }
+            }
+
+            checkCollision(rocketX, rocketY, rocketWidth, rocketHeight) {
+                if (this.collected) return false;
+                
+                const dx = this.x - rocketX;
+                const dy = this.y - rocketY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                // Collision detection with generous hitbox
+                return distance < (this.width / 2 + rocketWidth / 2 + 20);
+            }
+
+            collect() {
+                this.collected = true;
+            }
+
+            destroy() {
+                if (this.element && this.element.parentNode) {
+                    this.element.parentNode.removeChild(this.element);
+                }
+                this.element = null;
+            }
+
+            isDestroyed() {
+                return this.element === null;
+            }
+        }
+
+        // ============================================
+        // ROCKET
+        // ============================================
+        
+        class Rocket {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.width = 30;
+                this.height = 60;
+                this.angle = 0;
+                this.targetAngle = 0;
+                this.flameIntensity = 0;
+                this.flameOffset = 0;
+                this.thrustMultiplier = 1;
+            }
+
+            update(isThrusting, thrustMultiplier = 1) {
+                // Smooth rotation
+                this.angle += (this.targetAngle - this.angle) * 0.1;
+                this.thrustMultiplier = thrustMultiplier;
+
+                // Animate flame with pulsing based on multiplier
+                if (isThrusting) {
+                    this.flameIntensity = Math.min(this.flameIntensity + 0.1, 1);
+                    // Faster pulsing with higher multipliers
+                    const pulseSpeed = 0.01 + Math.min(Math.log10(thrustMultiplier + 1) * 0.005, 0.05);
+                    this.flameOffset = Math.sin(Date.now() * pulseSpeed) * (3 + Math.min(thrustMultiplier / 100, 10));
+                } else {
+                    this.flameIntensity = Math.max(this.flameIntensity - 0.1, 0);
+                }
+            }
+
+            draw(ctx) {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.angle);
+
+                // Enhanced exhaust based on thrust multiplier
+                if (this.flameIntensity > 0) {
+                    this.drawEnhancedExhaust(ctx);
+                }
+
+                // Draw exhaust flame
+                if (this.flameIntensity > 0) {
+                    ctx.save();
+                    ctx.globalAlpha = this.flameIntensity;
+                    
+                    // Flame size increases with thrust multiplier
+                    const multiplierBoost = Math.min(Math.log10(this.thrustMultiplier + 1) * 20, 100);
+                    const flameHeight = 40 + this.flameOffset + multiplierBoost;
+                    const flameWidth = 10 + multiplierBoost * 0.3;
+                    
+                    const gradient = ctx.createLinearGradient(0, this.height / 2, 0, this.height / 2 + flameHeight);
+                    
+                    // Color changes with extreme multipliers
+                    if (this.thrustMultiplier > 1000) {
+                        gradient.addColorStop(0, '#00ffff');
+                        gradient.addColorStop(0.3, '#0088ff');
+                        gradient.addColorStop(0.6, '#ff00ff');
+                        gradient.addColorStop(1, 'rgba(255, 0, 255, 0)');
+                    } else if (this.thrustMultiplier > 100) {
+                        gradient.addColorStop(0, '#ffffff');
+                        gradient.addColorStop(0.3, '#ffff00');
+                        gradient.addColorStop(0.6, '#ff8800');
+                        gradient.addColorStop(1, 'rgba(255, 136, 0, 0)');
+                    } else {
+                        gradient.addColorStop(0, '#ffff00');
+                        gradient.addColorStop(0.3, '#ff8800');
+                        gradient.addColorStop(0.6, '#ff4400');
+                        gradient.addColorStop(1, 'rgba(255, 68, 0, 0)');
+                    }
+
+                    ctx.fillStyle = gradient;
+                    ctx.beginPath();
+                    ctx.moveTo(-flameWidth, this.height / 2);
+                    ctx.lineTo(0, this.height / 2 + flameHeight);
+                    ctx.lineTo(flameWidth, this.height / 2);
+                    ctx.closePath();
+                    ctx.fill();
+
+                    // Inner flame
+                    const innerGradient = ctx.createLinearGradient(0, this.height / 2, 0, this.height / 2 + flameHeight * 0.7);
+                    innerGradient.addColorStop(0, '#ffffff');
+                    innerGradient.addColorStop(0.5, this.thrustMultiplier > 1000 ? '#00ffff' : '#ffff00');
+                    innerGradient.addColorStop(1, 'rgba(255, 255, 0, 0)');
+
+                    ctx.fillStyle = innerGradient;
+                    ctx.beginPath();
+                    ctx.moveTo(-flameWidth * 0.5, this.height / 2);
+                    ctx.lineTo(0, this.height / 2 + flameHeight * 0.7);
+                    ctx.lineTo(flameWidth * 0.5, this.height / 2);
+                    ctx.closePath();
+                    ctx.fill();
+
+                    ctx.restore();
+                }
+
+                // Draw rocket body
+                ctx.fillStyle = '#e0e0e0';
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = 2;
+
+                // Main body
+                ctx.beginPath();
+                ctx.rect(-this.width / 2, -this.height / 2, this.width, this.height);
+                ctx.fill();
+                ctx.stroke();
+
+                // Nose cone
+                ctx.fillStyle = '#ff4444';
+                ctx.beginPath();
+                ctx.moveTo(-this.width / 2, -this.height / 2);
+                ctx.lineTo(0, -this.height / 2 - 20);
+                ctx.lineTo(this.width / 2, -this.height / 2);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // Fins
+                ctx.fillStyle = '#4444ff';
+                ctx.beginPath();
+                ctx.moveTo(-this.width / 2, this.height / 2);
+                ctx.lineTo(-this.width / 2 - 15, this.height / 2 + 15);
+                ctx.lineTo(-this.width / 2, this.height / 2 - 10);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(this.width / 2, this.height / 2);
+                ctx.lineTo(this.width / 2 + 15, this.height / 2 + 15);
+                ctx.lineTo(this.width / 2, this.height / 2 - 10);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // Window
+                ctx.fillStyle = '#88ccff';
+                ctx.beginPath();
+                ctx.arc(0, -this.height / 4, 8, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                // Details
+                ctx.strokeStyle = '#666';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(-this.width / 2 + 5, 0);
+                ctx.lineTo(this.width / 2 - 5, 0);
+                ctx.stroke();
+
+                ctx.restore();
+            }
+
+            drawEnhancedExhaust(ctx) {
+                // Enhanced visual effects based on thrust multiplier
+                const multiplier = this.thrustMultiplier;
+                
+                // Glow intensity increases with multiplier
+                if (multiplier > 100) {
+                    ctx.save();
+                    ctx.globalAlpha = this.flameIntensity * 0.5;
+                    ctx.shadowBlur = 40;
+                    ctx.shadowColor = multiplier > 1000 ? '#00ffff' : '#ff00ff';
+                    ctx.fillStyle = ctx.shadowColor;
+                    ctx.beginPath();
+                    ctx.arc(0, this.height / 2, 20, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                }
+                
+                // Plasma rings for extreme multipliers
+                if (multiplier > 1000) {
+                    ctx.save();
+                    ctx.globalAlpha = this.flameIntensity * 0.3;
+                    for (let i = 0; i < 3; i++) {
+                        const radius = 15 + i * 10 + Math.sin(Date.now() * 0.01 + i) * 5;
+                        ctx.strokeStyle = i % 2 === 0 ? '#00ffff' : '#ff00ff';
+                        ctx.lineWidth = 3;
+                        ctx.beginPath();
+                        ctx.arc(0, this.height / 2, radius, 0, Math.PI * 2);
+                        ctx.stroke();
+                    }
+                    ctx.restore();
+                }
+            }
+        }
+
+        // ============================================
+        // BACKGROUND RENDERER
+        // ============================================
+        
+        class Background {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.gradientCache = new Map();
+            }
+
+            getBackgroundGradient(altitude) {
+                // Cache gradients for performance
+                const altitudeKey = Math.floor(altitude / 10000);
+                if (this.gradientCache.has(altitudeKey)) {
+                    return this.gradientCache.get(altitudeKey);
+                }
+
+                const ctx = this.canvas.getContext('2d');
+                const gradient = ctx.createLinearGradient(0, 0, 0, this.canvas.height);
+
+                if (altitude < 12000) {
+                    // Troposphere - blue sky
+                    const factor = altitude / 12000;
+                    gradient.addColorStop(0, `rgb(${135 - factor * 100}, ${206 - factor * 100}, ${235 - factor * 150})`);
+                    gradient.addColorStop(1, `rgb(${100 - factor * 80}, ${149 - factor * 100}, ${237 - factor * 180})`);
+                } else if (altitude < 50000) {
+                    // Stratosphere - darker blue
+                    const factor = (altitude - 12000) / 38000;
+                    gradient.addColorStop(0, `rgb(${35 - factor * 30}, ${106 - factor * 80}, ${85 - factor * 70})`);
+                    gradient.addColorStop(1, `rgb(${20 - factor * 15}, ${29 - factor * 20}, ${57 - factor * 45})`);
+                } else if (altitude < 600000) {
+                    // High atmosphere - very dark
+                    const factor = (altitude - 50000) / 550000;
+                    gradient.addColorStop(0, `rgb(${5 - factor * 3}, ${26 - factor * 20}, ${15 - factor * 10})`);
+                    gradient.addColorStop(1, `rgb(${5 - factor * 5}, ${9 - factor * 9}, ${12 - factor * 12})`);
+                } else {
+                    // Space - black
+                    gradient.addColorStop(0, '#000000');
+                    gradient.addColorStop(1, '#000000');
+                }
+
+                this.gradientCache.set(altitudeKey, gradient);
+                return gradient;
+            }
+
+            draw(ctx, altitude, cameraOffset = 0) {
+                ctx.fillStyle = this.getBackgroundGradient(altitude);
+                ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+                // Add atmospheric glow effects
+                this.drawAtmosphericEffects(ctx, altitude);
+
+                // Draw celestial objects based on altitude/zone with camera offset
+                this.drawCelestialObjects(ctx, altitude, cameraOffset);
+            }
+
+            drawAtmosphericEffects(ctx, altitude) {
+                // Atmospheric scattering in lower atmosphere
+                if (altitude < 100000) {
+                    const intensity = 1 - (altitude / 100000);
+                    const gradient = ctx.createRadialGradient(
+                        this.canvas.width / 2, this.canvas.height, this.canvas.height * 0.5,
+                        this.canvas.width / 2, this.canvas.height, this.canvas.height * 1.5
+                    );
+                    gradient.addColorStop(0, `rgba(135, 206, 250, ${intensity * 0.3})`);
+                    gradient.addColorStop(1, 'rgba(135, 206, 250, 0)');
+                    ctx.fillStyle = gradient;
+                    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                }
+
+                // Add stars density increase with altitude
+                if (altitude > 50000) {
+                    const starDensity = Math.min((altitude - 50000) / 200000, 0.15);
+                    ctx.fillStyle = `rgba(255, 255, 255, ${starDensity})`;
+                    for (let i = 0; i < 20; i++) {
+                        const x = Math.random() * this.canvas.width;
+                        const y = Math.random() * this.canvas.height;
+                        ctx.fillRect(x, y, 1, 1);
+                    }
+                }
+
+                // Distant galaxies in extreme deep space
+                if (altitude > 4500000000000) {
+                    const galaxyAlpha = Math.min((altitude - 4500000000000) / 10000000000000, 0.3);
+                    for (let i = 0; i < 3; i++) {
+                        const x = (this.canvas.width / 4) * (i + 0.5);
+                        const y = this.canvas.height * (0.2 + i * 0.3);
+                        const size = 60 + i * 20;
+                        
+                        const gradient = ctx.createRadialGradient(x, y, 0, x, y, size);
+                        gradient.addColorStop(0, `rgba(200, 180, 255, ${galaxyAlpha})`);
+                        gradient.addColorStop(0.5, `rgba(150, 130, 200, ${galaxyAlpha * 0.5})`);
+                        gradient.addColorStop(1, 'rgba(100, 80, 150, 0)');
+                        
+                        ctx.fillStyle = gradient;
+                        ctx.beginPath();
+                        ctx.ellipse(x, y, size, size * 0.3, Math.PI / 4 * i, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+            }
+
+            drawCelestialObjects(ctx, altitude, cameraOffset) {
+                const centerX = this.canvas.width / 2;
+                const bottomY = this.canvas.height;
+
+                // Earth - visible from start until past Geostationary Orbit
+                if (altitude < 100000000) {
+                    this.drawEarthDetailed(ctx, altitude, centerX, bottomY, cameraOffset);
+                }
+
+                // Moon - visible from Geostationary Orbit through Moon Distance zone
+                if (altitude >= 35786000 && altitude < 78000000000) {
+                    this.drawMoon(ctx, altitude, cameraOffset);
+                }
+
+                // Mars - visible at Mars Distance zone
+                if (altitude >= 78000000000 && altitude < 400000000000) {
+                    this.drawMars(ctx, altitude);
+                }
+
+                // Asteroid Belt - visible at Asteroid Belt zone
+                if (altitude >= 400000000000 && altitude < 778000000000) {
+                    this.drawAsteroidBelt(ctx, altitude);
+                }
+
+                // Jupiter - visible at Jupiter Distance zone
+                if (altitude >= 778000000000 && altitude < 1400000000000) {
+                    this.drawJupiter(ctx, altitude);
+                }
+
+                // Saturn - visible at Saturn Distance zone
+                if (altitude >= 1400000000000 && altitude < 2900000000000) {
+                    this.drawSaturn(ctx, altitude);
+                }
+
+                // Uranus - visible at Uranus Distance zone
+                if (altitude >= 2900000000000 && altitude < 4500000000000) {
+                    this.drawUranus(ctx, altitude);
+                }
+
+                // Neptune - visible at Neptune Distance zone
+                if (altitude >= 4500000000000 && altitude < 7500000000000) {
+                    this.drawNeptune(ctx, altitude);
+                }
+
+                // Background satellites in LEO (200km-600km)
+                if (altitude >= 200000 && altitude < 600000) {
+                    this.drawBackgroundSatellites(ctx, altitude);
+                }
+
+                // Background space stations in MEO (600km-35M)
+                if (altitude >= 600000 && altitude < 35786000) {
+                    this.drawBackgroundStations(ctx, altitude);
+                }
+
+                // Kuiper Belt - visible at Kuiper Belt zone
+                if (altitude >= 7500000000000 && altitude < 15000000000000000) {
+                    this.drawKuiperBelt(ctx, altitude);
+                }
+
+                // Oort Cloud - visible at Oort Cloud zone
+                if (altitude >= 15000000000000000 && altitude < 100000000000000000) {
+                    this.drawOortCloud(ctx, altitude);
+                }
+
+                // Proxima Centauri - visible at Proxima zone
+                if (altitude >= 1000000000000000000 && altitude < 5000000000000000000) {
+                    this.drawProximaCentauri(ctx, altitude);
+                }
+
+                // Galactic Core - visible at Galactic Core zone
+                if (altitude >= 10000000000000000000 && altitude < 50000000000000000000) {
+                    this.drawGalacticCore(ctx, altitude);
+                }
+
+                // Reality Distortion - visible at Beyond Reality zone
+                if (altitude >= 50000000000000000000) {
+                    this.drawRealityDistortion(ctx, altitude);
+                }
+            }
+
+            drawBackgroundSatellites(ctx, altitude) {
+                ctx.save();
+                
+                // Position satellites scrolling down based on progress through zone
+                const zoneStart = 200000;
+                const zoneEnd = 600000;
+                const progress = (altitude - zoneStart) / (zoneEnd - zoneStart);
+                
+                // Draw 3 small satellites at different positions
+                for (let i = 0; i < 3; i++) {
+                    const x = (this.canvas.width / 4) * (i + 0.5);
+                    const y = this.canvas.height * 0.2 + (progress * this.canvas.height * 0.6) + Math.sin(altitude * 0.00001 + i) * 50;
+                    
+                    ctx.fillStyle = '#cccccc';
+                    ctx.fillRect(x - 4, y - 4, 8, 8);
+                    
+                    // Solar panels
+                    ctx.fillStyle = '#4444aa';
+                    ctx.fillRect(x - 12, y - 2, 6, 4);
+                    ctx.fillRect(x + 6, y - 2, 6, 4);
+                    
+                    // Blinking light
+                    if (Math.sin(Date.now() * 0.005 + i) > 0.5) {
+                        ctx.fillStyle = '#ff0000';
+                        ctx.fillRect(x - 1, y - 1, 2, 2);
+                    }
+                }
+                
+                ctx.restore();
+            }
+
+            drawBackgroundStations(ctx, altitude) {
+                ctx.save();
+                
+                // Position stations scrolling down based on progress through zone
+                const zoneStart = 600000;
+                const zoneEnd = 35786000;
+                const progress = (altitude - zoneStart) / (zoneEnd - zoneStart);
+                
+                // Draw 2 space stations at different positions
+                for (let i = 0; i < 2; i++) {
+                    const x = (this.canvas.width / 3) * (i + 1);
+                    const y = this.canvas.height * 0.25 + (progress * this.canvas.height * 0.5) + Math.sin(altitude * 0.000001 + i) * 80;
+                    const rotation = Date.now() * 0.0003 + i;
+                    
+                    ctx.save();
+                    ctx.translate(x, y);
+                    ctx.rotate(rotation);
+                    
+                    // Central hub
+                    ctx.fillStyle = '#dddddd';
+                    ctx.fillRect(-8, -8, 16, 16);
+                    
+                    // Modules
+                    ctx.fillStyle = '#999999';
+                    ctx.fillRect(-20, -4, 8, 8);
+                    ctx.fillRect(12, -4, 8, 8);
+                    ctx.fillRect(-4, -20, 8, 8);
+                    ctx.fillRect(-4, 12, 8, 8);
+                    
+                    // Solar panels
+                    ctx.fillStyle = '#2a5a8a';
+                    ctx.fillRect(-35, -6, 20, 12);
+                    ctx.fillRect(15, -6, 20, 12);
+                    
+                    // Lights
+                    if (Math.sin(Date.now() * 0.003 + i) > 0) {
+                        ctx.fillStyle = '#00ffff';
+                        ctx.fillRect(-2, -2, 4, 4);
+                    }
+                    
+                    ctx.restore();
+                }
+                
+                ctx.restore();
+            }
+
+            drawEarthDetailed(ctx, altitude, centerX, bottomY, cameraOffset) {
+                const earthY = bottomY + altitude * 0.0005 + cameraOffset;
+                const earthRadius = 300 - Math.min(altitude * 0.0001, 250);
+
+                if (earthY - earthRadius < this.canvas.height + 100) {
+                    ctx.save();
+
+                    // Solid Earth base with vibrant colors
+                    const earthGradient = ctx.createRadialGradient(
+                        centerX - earthRadius * 0.3, earthY - earthRadius * 0.3, earthRadius * 0.1,
+                        centerX, earthY, earthRadius
+                    );
+                    
+                    earthGradient.addColorStop(0, '#7cb342');  // Light green
+                    earthGradient.addColorStop(0.5, '#558b2f'); // Forest green
+                    earthGradient.addColorStop(1, '#3d6b24');   // Deep green
+
+                    ctx.fillStyle = earthGradient;
+                    ctx.beginPath();
+                    ctx.arc(centerX, earthY, earthRadius, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Solid blue oceans
+                    ctx.fillStyle = '#1976d2';
+                    ctx.globalAlpha = 1;
+                    
+                    // Large ocean patches
+                    ctx.beginPath();
+                    ctx.ellipse(centerX - earthRadius * 0.5, earthY - earthRadius * 0.3, 
+                        earthRadius * 0.2, earthRadius * 0.25, 0.5, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.beginPath();
+                    ctx.ellipse(centerX + earthRadius * 0.3, earthY + earthRadius * 0.4, 
+                        earthRadius * 0.25, earthRadius * 0.2, -0.3, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.beginPath();
+                    ctx.ellipse(centerX - earthRadius * 0.1, earthY + earthRadius * 0.5, 
+                        earthRadius * 0.15, earthRadius * 0.22, 0.8, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.beginPath();
+                    ctx.ellipse(centerX + earthRadius * 0.5, earthY - earthRadius * 0.5, 
+                        earthRadius * 0.13, earthRadius * 0.16, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.beginPath();
+                    ctx.ellipse(centerX - earthRadius * 0.35, earthY + earthRadius * 0.1, 
+                        earthRadius * 0.22, earthRadius * 0.15, 1.2, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.beginPath();
+                    ctx.ellipse(centerX + earthRadius * 0.1, earthY - earthRadius * 0.6, 
+                        earthRadius * 0.17, earthRadius * 0.13, 0.3, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // White ice caps
+                    ctx.fillStyle = '#ffffff';
+                    ctx.beginPath();
+                    ctx.ellipse(centerX, earthY - earthRadius * 0.85, 
+                        earthRadius * 0.25, earthRadius * 0.15, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    ctx.beginPath();
+                    ctx.ellipse(centerX, earthY + earthRadius * 0.85, 
+                        earthRadius * 0.28, earthRadius * 0.18, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Cloud details
+                    ctx.fillStyle = '#ffffff';
+                    ctx.globalAlpha = 0.4;
+                    for (let i = 0; i < 8; i++) {
+                        const angle = (i / 8) * Math.PI * 2;
+                        const cloudX = centerX + Math.cos(angle) * earthRadius * 0.6;
+                        const cloudY = earthY + Math.sin(angle) * earthRadius * 0.6;
+                        ctx.beginPath();
+                        ctx.arc(cloudX, cloudY, earthRadius * 0.08, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+
+                    ctx.globalAlpha = 1;
+
+                    // Atmosphere glow
+                    if (altitude < 500000) {
+                        ctx.globalAlpha = 0.5 - (altitude / 500000) * 0.3;
+                        const glowGradient = ctx.createRadialGradient(
+                            centerX, earthY, earthRadius,
+                            centerX, earthY, earthRadius + 40
+                        );
+                        glowGradient.addColorStop(0, '#87CEEB');
+                        glowGradient.addColorStop(1, 'rgba(135, 206, 235, 0)');
+                        ctx.fillStyle = glowGradient;
+                        ctx.beginPath();
+                        ctx.arc(centerX, earthY, earthRadius + 40, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+
+                    ctx.restore();
+                }
+            }
+
+            drawContinents(ctx, centerX, earthY, earthRadius) {
+                // This method is no longer used - keeping for compatibility
+            }
+
+            drawMoon(ctx, altitude, cameraOffset) {
+                ctx.save();
+                
+                // Position moon - starts at top, scrolls down based on progress through zone
+                const zoneStart = 35786000;
+                const zoneEnd = 78000000000;
+                const progress = (altitude - zoneStart) / (zoneEnd - zoneStart);
+                
+                const moonX = this.canvas.width * 0.5;
+                const moonY = this.canvas.height * 0.3 + (progress * this.canvas.height * 0.8);
+                const moonRadius = 150;
+
+                const moonGradient = ctx.createRadialGradient(
+                    moonX - moonRadius * 0.3, moonY - moonRadius * 0.3, moonRadius * 0.1,
+                    moonX, moonY, moonRadius
+                );
+                moonGradient.addColorStop(0, '#ffffff');
+                moonGradient.addColorStop(0.5, '#f0f0f0');
+                moonGradient.addColorStop(0.8, '#c0c0c0');
+                moonGradient.addColorStop(1, '#808080');
+
+                ctx.fillStyle = moonGradient;
+                ctx.beginPath();
+                ctx.arc(moonX, moonY, moonRadius, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Moon craters
+                ctx.fillStyle = 'rgba(80, 80, 80, 0.4)';
+                ctx.beginPath();
+                ctx.arc(moonX - 40, moonY - 30, 25, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(moonX + 50, moonY + 40, 20, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(moonX + 10, moonY - 60, 18, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(moonX - 60, moonY + 20, 15, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.restore();
+            }
+
+            drawMars(ctx, altitude) {
+                ctx.save();
+                
+                // Position Mars - scrolls down based on progress through zone
+                const zoneStart = 78000000000;
+                const zoneEnd = 400000000000;
+                const progress = (altitude - zoneStart) / (zoneEnd - zoneStart);
+                
+                const marsX = this.canvas.width * 0.5;
+                const marsY = this.canvas.height * 0.3 + (progress * this.canvas.height * 0.8);
+                const marsRadius = 120;
+
+                const marsGradient = ctx.createRadialGradient(
+                    marsX - marsRadius * 0.3, marsY - marsRadius * 0.3, marsRadius * 0.1,
+                    marsX, marsY, marsRadius
+                );
+                marsGradient.addColorStop(0, '#ff8866');
+                marsGradient.addColorStop(0.5, '#ff6347');
+                marsGradient.addColorStop(0.8, '#dc143c');
+                marsGradient.addColorStop(1, '#8b0000');
+
+                ctx.fillStyle = marsGradient;
+                ctx.beginPath();
+                ctx.arc(marsX, marsY, marsRadius, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Mars polar ice cap
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                ctx.beginPath();
+                ctx.arc(marsX, marsY - marsRadius * 0.7, marsRadius * 0.25, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Mars surface features
+                ctx.fillStyle = 'rgba(139, 0, 0, 0.3)';
+                ctx.beginPath();
+                ctx.arc(marsX - 30, marsY + 20, 20, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(marsX + 40, marsY - 10, 15, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.restore();
+            }
+
+            drawJupiter(ctx, altitude) {
+                ctx.save();
+                
+                // Position Jupiter - scrolls down based on progress through zone
+                const zoneStart = 778000000000;
+                const zoneEnd = 1400000000000;
+                const progress = (altitude - zoneStart) / (zoneEnd - zoneStart);
+                
+                const jupX = this.canvas.width * 0.5;
+                const jupY = this.canvas.height * 0.3 + (progress * this.canvas.height * 0.8);
+                const jupRadius = 180;
+
+                const jupiterGradient = ctx.createRadialGradient(
+                    jupX, jupY, jupRadius * 0.1,
+                    jupX, jupY, jupRadius
+                );
+                jupiterGradient.addColorStop(0, '#f4d03f');
+                jupiterGradient.addColorStop(0.4, '#daa520');
+                jupiterGradient.addColorStop(0.7, '#cd853f');
+                jupiterGradient.addColorStop(1, '#8b4513');
+
+                ctx.fillStyle = jupiterGradient;
+                ctx.beginPath();
+                ctx.arc(jupX, jupY, jupRadius, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Jupiter's bands
+                ctx.strokeStyle = 'rgba(139, 69, 19, 0.4)';
+                ctx.lineWidth = 12;
+                for (let i = -2; i <= 2; i++) {
+                    ctx.beginPath();
+                    ctx.ellipse(jupX, jupY + i * 40, jupRadius * 0.9, jupRadius * 0.15, 0, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+
+                // Great Red Spot
+                ctx.fillStyle = 'rgba(220, 20, 60, 0.7)';
+                ctx.beginPath();
+                ctx.ellipse(jupX + jupRadius * 0.4, jupY + jupRadius * 0.3, 35, 25, 0.3, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.restore();
+            }
+
+            drawSaturn(ctx, altitude) {
+                ctx.save();
+                
+                // Position Saturn - scrolls down based on progress through zone
+                const zoneStart = 1400000000000;
+                const zoneEnd = 2900000000000;
+                const progress = (altitude - zoneStart) / (zoneEnd - zoneStart);
+                
+                const satX = this.canvas.width * 0.5;
+                const satY = this.canvas.height * 0.3 + (progress * this.canvas.height * 0.8);
+                const satRadius = 140;
+
+                // Saturn's rings (draw first, behind planet)
+                ctx.globalAlpha = 0.8;
+                
+                const ringGradient = ctx.createRadialGradient(satX, satY, satRadius * 1.3, satX, satY, satRadius * 2.2);
+                ringGradient.addColorStop(0, '#f4e4c1');
+                ringGradient.addColorStop(0.3, '#daa520');
+                ringGradient.addColorStop(0.6, '#cd853f');
+                ringGradient.addColorStop(1, 'rgba(205, 133, 63, 0)');
+                
+                ctx.fillStyle = ringGradient;
+                ctx.beginPath();
+                ctx.ellipse(satX, satY, satRadius * 2.2, satRadius * 0.5, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Ring gap (Cassini Division)
+                ctx.globalCompositeOperation = 'destination-out';
+                ctx.beginPath();
+                ctx.ellipse(satX, satY, satRadius * 1.7, satRadius * 0.38, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalCompositeOperation = 'source-over';
+                
+                ctx.globalAlpha = 1;
+
+                // Saturn planet
+                const saturnGradient = ctx.createRadialGradient(
+                    satX - satRadius * 0.3, satY - satRadius * 0.3, satRadius * 0.1,
+                    satX, satY, satRadius
+                );
+                saturnGradient.addColorStop(0, '#fffacd');
+                saturnGradient.addColorStop(0.5, '#f4e4c1');
+                saturnGradient.addColorStop(0.8, '#e6d8b5');
+                saturnGradient.addColorStop(1, '#d4c4a8');
+
+                ctx.fillStyle = saturnGradient;
+                ctx.beginPath();
+                ctx.arc(satX, satY, satRadius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.restore();
+            }
+
+            drawNeptune(ctx, altitude) {
+                ctx.save();
+                
+                // Position Neptune - scrolls down based on progress through zone
+                const zoneStart = 4500000000000;
+                const zoneEnd = 7500000000000;
+                const progress = (altitude - zoneStart) / (zoneEnd - zoneStart);
+                
+                const nepX = this.canvas.width * 0.5;
+                const nepY = this.canvas.height * 0.3 + (progress * this.canvas.height * 0.8);
+                const nepRadius = 130;
+
+                const neptuneGradient = ctx.createRadialGradient(
+                    nepX - nepRadius * 0.3, nepY - nepRadius * 0.3, nepRadius * 0.1,
+                    nepX, nepY, nepRadius
+                );
+                neptuneGradient.addColorStop(0, '#6495ed');
+                neptuneGradient.addColorStop(0.4, '#4169e1');
+                neptuneGradient.addColorStop(0.7, '#0000cd');
+                neptuneGradient.addColorStop(1, '#00008b');
+
+                ctx.fillStyle = neptuneGradient;
+                ctx.beginPath();
+                ctx.arc(nepX, nepY, nepRadius, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Neptune's atmospheric features
+                ctx.fillStyle = 'rgba(100, 149, 237, 0.4)';
+                ctx.beginPath();
+                ctx.ellipse(nepX + nepRadius * 0.3, nepY, nepRadius * 0.5, nepRadius * 0.3, 0.5, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.fillStyle = 'rgba(70, 130, 180, 0.3)';
+                ctx.beginPath();
+                ctx.ellipse(nepX - nepRadius * 0.4, nepY + nepRadius * 0.3, nepRadius * 0.4, nepRadius * 0.25, -0.3, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.restore();
+            }
+
+            drawUranus(ctx, altitude) {
+                ctx.save();
+                
+                // Position Uranus - scrolls down based on progress through zone
+                const zoneStart = 2900000000000;
+                const zoneEnd = 4500000000000;
+                const progress = (altitude - zoneStart) / (zoneEnd - zoneStart);
+                
+                const uraX = this.canvas.width * 0.5;
+                const uraY = this.canvas.height * 0.3 + (progress * this.canvas.height * 0.8);
+                const uraRadius = 125;
+
+                const uranusGradient = ctx.createRadialGradient(
+                    uraX - uraRadius * 0.3, uraY - uraRadius * 0.3, uraRadius * 0.1,
+                    uraX, uraY, uraRadius
+                );
+                uranusGradient.addColorStop(0, '#afeeee');
+                uranusGradient.addColorStop(0.4, '#87ceeb');
+                uranusGradient.addColorStop(0.7, '#4682b4');
+                uranusGradient.addColorStop(1, '#5f9ea0');
+
+                ctx.fillStyle = uranusGradient;
+                ctx.beginPath();
+                ctx.arc(uraX, uraY, uraRadius, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Uranus rings (vertical orientation - tilted 98 degrees)
+                ctx.globalAlpha = 0.5;
+                ctx.strokeStyle = '#b0e0e6';
+                ctx.lineWidth = 8;
+                ctx.beginPath();
+                ctx.ellipse(uraX, uraY, uraRadius * 0.3, uraRadius * 1.5, 0, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                ctx.lineWidth = 6;
+                ctx.beginPath();
+                ctx.ellipse(uraX, uraY, uraRadius * 0.25, uraRadius * 1.3, 0, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                ctx.globalAlpha = 1;
+                
+                ctx.restore();
+            }
+
+            drawAsteroidBelt(ctx, altitude) {
+                ctx.save();
+                
+                // Position asteroids - scattered field
+                const zoneStart = 400000000000;
+                const zoneEnd = 778000000000;
+                const progress = (altitude - zoneStart) / (zoneEnd - zoneStart);
+                
+                const baseY = this.canvas.height * 0.3 + (progress * this.canvas.height * 0.8);
+                
+                // Draw multiple asteroids
+                ctx.fillStyle = '#8b7355';
+                const asteroidCount = 15;
+                for (let i = 0; i < asteroidCount; i++) {
+                    const x = (this.canvas.width / asteroidCount) * i + Math.sin(i * 2) * 50;
+                    const y = baseY + Math.cos(i * 3) * 100;
+                    const size = 8 + Math.sin(i) * 5;
+                    
+                    ctx.beginPath();
+                    ctx.arc(x, y, size, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // Add some detail
+                    ctx.fillStyle = '#6b5345';
+                    ctx.beginPath();
+                    ctx.arc(x - size * 0.3, y - size * 0.2, size * 0.3, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#8b7355';
+                }
+                
+                ctx.restore();
+            }
+
+            drawKuiperBelt(ctx, altitude) {
+                ctx.save();
+                
+                // Position icy objects - scattered field
+                const zoneStart = 7500000000000;
+                const zoneEnd = 15000000000000000;
+                const progress = (altitude - zoneStart) / (zoneEnd - zoneStart);
+                
+                const baseY = this.canvas.height * 0.3 + (progress * this.canvas.height * 0.8);
+                
+                // Draw icy objects
+                ctx.fillStyle = '#e0f7ff';
+                const objectCount = 20;
+                for (let i = 0; i < objectCount; i++) {
+                    const x = (this.canvas.width / objectCount) * i + Math.sin(i * 1.5) * 60;
+                    const y = baseY + Math.cos(i * 2.5) * 120;
+                    const size = 5 + Math.sin(i * 0.7) * 4;
+                    
+                    ctx.globalAlpha = 0.6 + Math.sin(i) * 0.3;
+                    ctx.beginPath();
+                    ctx.arc(x, y, size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                ctx.globalAlpha = 1;
+                ctx.restore();
+            }
+
+            drawOortCloud(ctx, altitude) {
+                ctx.save();
+                
+                // Position cloud particles - dense field
+                const zoneStart = 15000000000000000;
+                const zoneEnd = 100000000000000000;
+                const progress = (altitude - zoneStart) / (zoneEnd - zoneStart);
+                
+                const baseY = this.canvas.height * 0.3 + (progress * this.canvas.height * 0.8);
+                
+                // Draw cloud particles
+                ctx.fillStyle = '#d3d3d3';
+                const particleCount = 40;
+                for (let i = 0; i < particleCount; i++) {
+                    const x = Math.random() * this.canvas.width;
+                    const y = baseY + (Math.random() - 0.5) * this.canvas.height * 0.6;
+                    const size = 2 + Math.random() * 3;
+                    
+                    ctx.globalAlpha = 0.3 + Math.random() * 0.4;
+                    ctx.beginPath();
+                    ctx.arc(x, y, size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                ctx.globalAlpha = 1;
+                ctx.restore();
+            }
+
+            drawProximaCentauri(ctx, altitude) {
+                ctx.save();
+                const zoneStart = 1000000000000000000;
+                const zoneEnd = 5000000000000000000;
+                const progress = (altitude - zoneStart) / (zoneEnd - zoneStart);
+                
+                const starX = this.canvas.width * 0.5;
+                const starY = this.canvas.height * 0.4 + (progress * this.canvas.height * 0.6);
+                const starRadius = 100;
+                
+                // Red dwarf star
+                const gradient = ctx.createRadialGradient(starX, starY, 0, starX, starY, starRadius);
+                gradient.addColorStop(0, '#ffaa44');
+                gradient.addColorStop(0.5, '#ff6622');
+                gradient.addColorStop(1, '#ff2200');
+                
+                ctx.fillStyle = gradient;
+                ctx.shadowBlur = 50;
+                ctx.shadowColor = '#ff4400';
+                ctx.beginPath();
+                ctx.arc(starX, starY, starRadius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.restore();
+            }
+
+            drawGalacticCore(ctx, altitude) {
+                ctx.save();
+                const zoneStart = 10000000000000000000;
+                const zoneEnd = 50000000000000000000;
+                const progress = (altitude - zoneStart) / (zoneEnd - zoneStart);
+                
+                const coreX = this.canvas.width * 0.5;
+                const coreY = this.canvas.height * 0.5;
+                
+                // Massive bright core
+                const gradient = ctx.createRadialGradient(coreX, coreY, 0, coreX, coreY, 200);
+                gradient.addColorStop(0, '#ffffff');
+                gradient.addColorStop(0.3, '#ffff00');
+                gradient.addColorStop(0.6, '#ffaa00');
+                gradient.addColorStop(1, 'rgba(255, 100, 0, 0)');
+                
+                ctx.fillStyle = gradient;
+                ctx.shadowBlur = 100;
+                ctx.shadowColor = '#ffaa00';
+                ctx.beginPath();
+                ctx.arc(coreX, coreY, 200, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Spiral arms
+                ctx.strokeStyle = 'rgba(200, 150, 255, 0.3)';
+                ctx.lineWidth = 20;
+                for (let i = 0; i < 3; i++) {
+                    ctx.beginPath();
+                    for (let angle = 0; angle < Math.PI * 4; angle += 0.1) {
+                        const r = 50 + angle * 20;
+                        const x = coreX + Math.cos(angle + i * Math.PI * 0.66 + Date.now() * 0.0001) * r;
+                        const y = coreY + Math.sin(angle + i * Math.PI * 0.66 + Date.now() * 0.0001) * r;
+                        if (angle === 0) ctx.moveTo(x, y);
+                        else ctx.lineTo(x, y);
+                    }
+                    ctx.stroke();
+                }
+                
+                ctx.restore();
+            }
+
+            drawRealityDistortion(ctx, altitude) {
+                ctx.save();
+                
+                // Psychedelic reality-bending effects
+                const time = Date.now() * 0.001;
+                
+                for (let i = 0; i < 10; i++) {
+                    const x = this.canvas.width * 0.5 + Math.sin(time + i) * 200;
+                    const y = this.canvas.height * 0.5 + Math.cos(time * 1.3 + i) * 200;
+                    const size = 50 + Math.sin(time * 2 + i) * 30;
+                    
+                    const gradient = ctx.createRadialGradient(x, y, 0, x, y, size);
+                    const hue = (time * 50 + i * 36) % 360;
+                    gradient.addColorStop(0, `hsla(${hue}, 100%, 70%, 0.5)`);
+                    gradient.addColorStop(1, `hsla(${hue}, 100%, 50%, 0)`);
+                    
+                    ctx.fillStyle = gradient;
+                    ctx.beginPath();
+                    ctx.arc(x, y, size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                ctx.restore();
+            }
+        }
+
+        // ============================================
+        // MAIN GAME CLASS
+        // ============================================
+        
+        class Game {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.resizeCanvas();
+
+                // Initialize game systems
+                this.state = new GameState();
+                this.audio = new AudioSystem();
+                this.particles = new ParticleSystem();
+                this.background = new Background(this.canvas);
+                
+                // Initialize stars
+                this.stars = [];
+                for (let i = 0; i < CONFIG.STARS_COUNT; i++) {
+                    this.stars.push(new Star(this.canvas));
+                }
+
+                // Space events
+                this.comets = [];
+                this.satellites = [];
+                this.spaceStations = [];
+                this.meteors = [];
+                this.wormholes = [];
+                this.pulsars = [];
+                this.blackHoles = [];
+                this.aurora = null;
+                this.nebula = null;
+
+                // Initialize rocket at bottom center (ground level) - will move to center after launch
+                this.rocket = new Rocket(this.canvas.width / 2, this.canvas.height - 100);
+                this.rocketTargetY = this.canvas.height / 2; // Target position after launch
+                this.rocketLaunched = false; // Track if rocket has launched
+
+                // Powerup system
+                this.powerups = [];
+                this.lastPowerupSpawn = 0;
+                // Weighted powerup types - fuel has lower chance (10%), thrust powerups have higher chances
+                this.powerupTypes = [
+                    'speed', 'speed', 'speed',           // 30% chance for 10x
+                    'mega-thrust', 'mega-thrust',        // 20% chance for 25x
+                    'ultra-thrust', 'ultra-thrust',      // 20% chance for 100x
+                    'speed', 'mega-thrust',              // 20% more thrust
+                    'fuel'                               // 10% chance for fuel
+                ];
+
+                // Additional visual effects
+                this.shootingStars = [];
+                this.cosmicDust = null;
+
+                // Input handling
+                this.setupInputHandlers();
+
+                // UI references
+                this.setupUI();
+
+                // Animation
+                this.lastTime = 0;
+                this.animationId = null;
+
+                // Milestone tracking
+                this.lastShownMilestone = null;
+                this.milestoneTimeout = null;
+            }
+
+            resizeCanvas() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+                
+                // Reposition rocket if it exists - keep at bottom
+                if (this.rocket) {
+                    this.rocket.x = this.canvas.width / 2;
+                    this.rocket.y = this.canvas.height - 100;
+                }
+
+                // Regenerate stars on resize
+                if (this.stars) {
+                    this.stars = [];
+                    for (let i = 0; i < CONFIG.STARS_COUNT; i++) {
+                        this.stars.push(new Star(this.canvas));
+                    }
+                }
+            }
+
+            setupUI() {
+                this.elements = {
+                    startScreen: document.getElementById('startScreen'),
+                    startButton: document.getElementById('startButton'),
+                    gameOverScreen: document.getElementById('gameOverScreen'),
+                    restartButton: document.getElementById('restartButton'),
+                    altitudeValue: document.getElementById('altitudeValue'),
+                    velocityValue: document.getElementById('velocityValue'),
+                    thrustValue: document.getElementById('thrustValue'),
+                    zoneValue: document.getElementById('zoneValue'),
+                    fuelBarFill: document.getElementById('fuelBarFill'),
+                    fuelText: document.getElementById('fuelText'),
+                    finalAltValue: document.getElementById('finalAltValue'),
+                    finalVelValue: document.getElementById('finalVelValue'),
+                    finalZoneValue: document.getElementById('finalZoneValue'),
+                    altitudeScale: document.getElementById('altitudeScale'),
+                    milestone: document.getElementById('milestone'),
+                    powerupNotification: document.getElementById('powerupNotification')
+                };
+
+                // Start button with cinematic launch
+                this.elements.startButton.addEventListener('click', () => {
+                    const button = this.elements.startButton;
+                    const screen = this.elements.startScreen;
+                    const rocket = screen.querySelector('.rocket-logo');
+                    const flame = screen.querySelector('.launch-flame');
+                    
+                    // Trigger animations
+                    button.classList.add('clicked');
+                    screen.classList.add('launching');
+                    rocket.classList.add('launching');
+                    flame.classList.add('active');
+                    
+                    // Start game after animation
+                    setTimeout(() => {
+                        this.startGame();
+                    }, 1200);
+                });
+
+                // Restart button
+                this.elements.restartButton.addEventListener('click', () => {
+                    this.restartGame();
+                });
+
+                // Initial scale setup
+                this.updateAltitudeScale();
+            }
+
+            setupInputHandlers() {
+                // Keyboard controls
+                window.addEventListener('keydown', (e) => {
+                    if (e.code === 'Space' && this.state.gameStarted) {
+                        e.preventDefault();
+                        this.startThrust();
+                    }
+                });
+
+                window.addEventListener('keyup', (e) => {
+                    if (e.code === 'Space') {
+                        e.preventDefault();
+                        this.stopThrust();
+                    }
+                });
+
+                // Mouse controls
+                this.canvas.addEventListener('mousedown', (e) => {
+                    if (this.state.gameStarted) {
+                        e.preventDefault();
+                        this.startThrust();
+                    }
+                });
+
+                window.addEventListener('mouseup', () => {
+                    this.stopThrust();
+                });
+
+                // Touch controls
+                this.canvas.addEventListener('touchstart', (e) => {
+                    if (this.state.gameStarted) {
+                        e.preventDefault();
+                        this.startThrust();
+                    }
+                }, { passive: false });
+
+                this.canvas.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    this.stopThrust();
+                }, { passive: false });
+
+                // Prevent touch scrolling
+                this.canvas.addEventListener('touchmove', (e) => {
+                    e.preventDefault();
+                }, { passive: false });
+
+                // Window resize
+                window.addEventListener('resize', () => {
+                    this.resizeCanvas();
+                });
+            }
+
+            startThrust() {
+                this.state.startThrust();
+                if (this.state.isThrusting) {
+                    this.audio.playThrustSound();
+                }
+            }
+
+            stopThrust() {
+                this.state.stopThrust();
+                this.audio.stopThrustSound();
+            }
+
+            startGame() {
+                this.audio.init();
+                this.state.gameStarted = true;
+                this.elements.startScreen.classList.add('hidden');
+                
+                setTimeout(() => {
+                    this.elements.startScreen.style.display = 'none';
+                }, 500);
+
+                this.lastTime = performance.now();
+                this.gameLoop(this.lastTime);
+            }
+
+            restartGame() {
+                this.elements.gameOverScreen.classList.remove('visible');
+                this.state.reset();
+                this.particles.particles = [];
+                this.lastShownMilestone = null;
+                
+                // Reset rocket position to bottom
+                this.rocket.y = this.canvas.height - 100;
+                this.rocketLaunched = false;
+                
+                // Clean up powerups
+                this.powerups.forEach(p => p.destroy());
+                this.powerups = [];
+                this.lastPowerupSpawn = 0;
+                
+                // Clean up space events
+                this.comets = [];
+                this.satellites = [];
+                this.spaceStations = [];
+                this.meteors = [];
+                this.wormholes = [];
+                this.pulsars = [];
+                this.blackHoles = [];
+                this.shootingStars = [];
+                this.aurora = null;
+                this.nebula = null;
+                this.cosmicDust = null;
+                
+                // Stop music
+                if (this.audio.musicOscillators) {
+                    this.audio.stopAmbientMusic();
+                }
+                
+                this.startGame();
+            }
+
+            gameLoop(currentTime) {
+                const deltaTime = Math.min((currentTime - this.lastTime) / 1000, 0.1); // Cap at 100ms
+                this.lastTime = currentTime;
+
+                // Update game state
+                this.state.update(deltaTime);
+
+                // Handle rocket position transition after launch
+                if (!this.rocketLaunched && this.state.altitude > 10) {
+                    this.rocketLaunched = true;
+                }
+
+                if (this.rocketLaunched) {
+                    // Smoothly move rocket to center position
+                    const dy = this.rocketTargetY - this.rocket.y;
+                    this.rocket.y += dy * 0.05; // Smooth transition
+                }
+
+                // Spawn powerups
+                if (this.state.gameStarted && !this.state.gameOver) {
+                    if (currentTime - this.lastPowerupSpawn > CONFIG.POWERUP_SPAWN_INTERVAL) {
+                        this.spawnPowerup();
+                        this.lastPowerupSpawn = currentTime;
+                    }
+                }
+
+                // Update powerups
+                for (let i = this.powerups.length - 1; i >= 0; i--) {
+                    const powerup = this.powerups[i];
+                    powerup.update(deltaTime);
+                    
+                    // Check collision with rocket
+                    if (!powerup.collected && powerup.checkCollision(
+                        this.rocket.x, 
+                        this.rocket.y, 
+                        this.rocket.width, 
+                        this.rocket.height
+                    )) {
+                        this.collectPowerup(powerup);
+                    }
+                    
+                    // Remove destroyed powerups
+                    if (powerup.isDestroyed()) {
+                        this.powerups.splice(i, 1);
+                    }
+                }
+
+                // Spawn random space events
+                if (this.state.gameStarted && !this.state.gameOver) {
+                    // Clear space stations after Mars distance
+                    if (this.state.altitude > 78000000000) {
+                        this.spaceStations = [];
+                    }
+                    
+                    // Meteors in space (from 100km to Moon distance)
+                    if (this.state.altitude > 100000 && this.state.altitude < 384400000 && Math.random() < CONFIG.METEOR_SPAWN_CHANCE) {
+                        this.meteors.push(new Meteor(this.canvas));
+                    }
+                    
+                    // Satellites in LEO/MEO (after LEO starts at 160km, up to Mars)
+                    if (this.state.altitude > 160000 && this.state.altitude < 78000000000 && Math.random() < CONFIG.SATELLITE_SPAWN_CHANCE) {
+                        this.satellites.push(new Satellite(this.canvas));
+                    }
+                    
+                    // Space Stations in LEO/MEO (after LEO starts at 160km, up to Mars)
+                    if (this.state.altitude > 160000 && this.state.altitude < 78000000000 && Math.random() < CONFIG.SPACE_STATION_CHANCE) {
+                        this.spaceStations.push(new SpaceStation(this.canvas));
+                    }
+                    
+                    // Other events only when Earth is not visible (above 100M meters)
+                    if (this.state.altitude > 100000000) {
+                        // Comets in deep space
+                        if (this.state.altitude > 10000000 && Math.random() < CONFIG.COMET_SPAWN_CHANCE) {
+                            this.comets.push(new Comet(this.canvas));
+                        }
+                    }
+                    
+                    // Aurora in thermosphere - appears more reliably
+                    if (this.state.altitude > 85000 && this.state.altitude < CONFIG.AURORA_MAX_ALTITUDE && !this.aurora) {
+                        this.aurora = new Aurora(this.canvas);
+                    } else if (this.state.altitude >= CONFIG.AURORA_MAX_ALTITUDE || this.state.altitude < 85000) {
+                        this.aurora = null;
+                    }
+                    
+                    // Nebula in deep space
+                    if (this.state.altitude > CONFIG.NEBULA_ZONES[0] && this.state.altitude < CONFIG.NEBULA_ZONES[1] && !this.nebula) {
+                        this.nebula = new Nebula(this.canvas);
+                    } else if (this.state.altitude < CONFIG.NEBULA_ZONES[0] || this.state.altitude > CONFIG.NEBULA_ZONES[1]) {
+                        this.nebula = null;
+                    }
+                    
+                    // Shooting stars in space (more frequent)
+                    if (this.state.altitude > 100000000 && Math.random() < 0.005) {
+                        this.shootingStars.push(new ShootingStar(this.canvas));
+                    }
+                    
+                    // Cosmic dust in deep space
+                    if (this.state.altitude > 1000000000000 && !this.cosmicDust) {
+                        this.cosmicDust = new CosmicDust(this.canvas);
+                    } else if (this.state.altitude < 1000000000000) {
+                        this.cosmicDust = null;
+                    }
+                    
+                    // Satellite constellations in LEO (200km-600km)
+                    if (this.state.altitude > 200000 && this.state.altitude < 600000 && Math.random() < 0.003) {
+                        this.satellites.push(new Satellite(this.canvas));
+                    }
+                }
+
+                // Start ambient music at Beyond Reality zone
+                if (this.state.altitude >= 50000000000000000000 && !this.audio.musicOscillators) {
+                    this.audio.playAmbientMusic();
+                } else if (this.state.altitude < 50000000000000000000 && this.audio.musicOscillators) {
+                    this.audio.stopAmbientMusic();
+                }
+
+                // Spawn exotic space phenomena in extreme deep space
+                if (this.state.gameStarted && !this.state.gameOver && this.state.altitude > 100000000000000000) {
+                    // Wormholes in interstellar space
+                    if (Math.random() < 0.001) {
+                        this.wormholes.push(new Wormhole(this.canvas));
+                    }
+                    
+                    // Pulsars in deep space
+                    if (this.state.altitude > 500000000000000000 && Math.random() < 0.0008) {
+                        this.pulsars.push(new Pulsar(this.canvas));
+                    }
+                    
+                    // Black holes in extreme space
+                    if (this.state.altitude > 5000000000000000000 && Math.random() < 0.0005) {
+                        this.blackHoles.push(new BlackHole(this.canvas));
+                    }
+                    
+                    // Beyond Reality - MORE weird phenomena
+                    if (this.state.altitude >= 50000000000000000000) {
+                        // Extra wormholes
+                        if (Math.random() < 0.0015) {
+                            this.wormholes.push(new Wormhole(this.canvas));
+                        }
+                        // Extra pulsars
+                        if (Math.random() < 0.0012) {
+                            this.pulsars.push(new Pulsar(this.canvas));
+                        }
+                        // Extra black holes
+                        if (Math.random() < 0.0008) {
+                            this.blackHoles.push(new BlackHole(this.canvas));
+                        }
+                        // More shooting stars
+                        if (Math.random() < 0.008) {
+                            this.shootingStars.push(new ShootingStar(this.canvas));
+                        }
+                    }
+                }
+
+                // Update space events
+                this.comets = this.comets.filter(c => { c.update(); return !c.isDead(); });
+                this.satellites = this.satellites.filter(s => { s.update(); return !s.isDead(); });
+                this.meteors = this.meteors.filter(m => { m.update(); return !m.isDead(); });
+                this.wormholes = this.wormholes.filter(w => { w.update(0.016); return !w.isDead(); });
+                this.pulsars = this.pulsars.filter(p => { p.update(0.016); return !p.isDead(); });
+                this.blackHoles = this.blackHoles.filter(b => { b.update(0.016); return !b.isDead(); });
+                this.shootingStars = this.shootingStars.filter(s => { s.update(); return !s.isDead(); });
+                this.spaceStations = this.spaceStations.filter(station => { station.update(0.016); return !station.isDead(); });
+                if (this.aurora) this.aurora.update();
+                if (this.nebula) this.nebula.update();
+                if (this.cosmicDust) this.cosmicDust.update();
+
+                // Update systems
+                this.particles.update();
+                this.rocket.update(this.state.isThrusting, this.state.getCurrentThrustMultiplier());
+                this.stars.forEach(star => star.update());
+
+                // Emit particles when thrusting
+                if (this.state.isThrusting && this.state.fuel > 0) {
+                    // More particles at higher speeds
+                    const particleCount = Math.min(3 + Math.floor(this.state.velocity / 1000), 15);
+                    const multiplier = this.state.getCurrentThrustMultiplier();
+                    
+                    // Always emit normal particles
+                    this.particles.emit(this.rocket.x, this.rocket.y + 30, particleCount);
+                    
+                    // Add some colored particles for extreme thrust (1000x+) - less frequent
+                    if (multiplier > 1000 && Math.random() < 0.3) {
+                        this.particles.emitColored(this.rocket.x, this.rocket.y + 30, Math.floor(particleCount * 0.4));
+                    }
+                    
+                    // Update thrust sound based on velocity and multiplier
+                    this.audio.updateThrustSound(this.state.velocity, multiplier);
+                }
+
+                // Check for milestones
+                this.checkMilestones();
+
+                // Render
+                this.render();
+
+                // Update UI
+                this.updateUI();
+
+                // Check game over
+                if (this.state.gameOver) {
+                    this.handleGameOver();
+                    return;
+                }
+
+                // Continue loop
+                this.animationId = requestAnimationFrame((time) => this.gameLoop(time));
+            }
+
+            render() {
+                // Clear canvas
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+                // Screen shake when thrusting at high speeds
+                if (this.state.isThrusting && this.state.velocity > 1000) {
+                    const shakeIntensity = Math.min(this.state.velocity / 10000, 3);
+                    this.ctx.save();
+                    this.ctx.translate(
+                        (Math.random() - 0.5) * shakeIntensity,
+                        (Math.random() - 0.5) * shakeIntensity
+                    );
+                }
+
+                // Draw background with camera offset for scrolling
+                this.background.draw(this.ctx, this.state.altitude, this.state.cameraOffset);
+
+                // Draw nebula (behind everything)
+                if (this.nebula) this.nebula.draw(this.ctx);
+
+                // Draw stars
+                this.stars.forEach(star => star.draw(this.ctx, this.state.altitude));
+
+                // Draw speed lines when going fast
+                if (this.state.velocity > 500) {
+                    this.drawSpeedLines();
+                }
+
+                // Draw aurora
+                if (this.aurora) this.aurora.draw(this.ctx);
+
+                // Draw cosmic dust
+                if (this.cosmicDust) this.cosmicDust.draw(this.ctx);
+
+                // Draw space events
+                this.shootingStars.forEach(s => s.draw(this.ctx));
+                this.comets.forEach(c => c.draw(this.ctx));
+                this.satellites.forEach(s => s.draw(this.ctx));
+                this.spaceStations.forEach(station => station.draw(this.ctx));
+                this.meteors.forEach(m => m.draw(this.ctx));
+                this.wormholes.forEach(w => w.draw(this.ctx));
+                this.pulsars.forEach(p => p.draw(this.ctx));
+                this.blackHoles.forEach(b => b.draw(this.ctx));
+
+                // Draw particles
+                this.particles.draw(this.ctx);
+
+                // Draw rocket
+                this.rocket.draw(this.ctx);
+
+                // Restore context if shake was applied
+                if (this.state.isThrusting && this.state.velocity > 1000) {
+                    this.ctx.restore();
+                }
+            }
+
+            drawSpeedLines() {
+                const lineCount = Math.min(Math.floor(this.state.velocity / 100), 20);
+                const alpha = Math.min(this.state.velocity / 5000, 0.5);
+                
+                this.ctx.save();
+                this.ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+                this.ctx.lineWidth = 2;
+                
+                for (let i = 0; i < lineCount; i++) {
+                    const x = Math.random() * this.canvas.width;
+                    const y = Math.random() * this.canvas.height;
+                    const length = Math.random() * 50 + 20;
+                    
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(x, y);
+                    this.ctx.lineTo(x, y + length);
+                    this.ctx.stroke();
+                }
+                
+                this.ctx.restore();
+            }
+
+            updateUI() {
+                // Format altitude - show km when above 1000m
+                let altText;
+                if (this.state.altitude >= 1000) {
+                    altText = `${(this.state.altitude / 1000).toFixed(2)} km`;
+                } else {
+                    altText = `${Math.floor(this.state.altitude)} m`;
+                }
+
+                this.elements.altitudeValue.textContent = altText;
+                this.elements.velocityValue.textContent = `${Math.floor(this.state.velocity)} m/s`;
+                
+                // Display thrust multiplier with color coding
+                const thrustMultiplier = this.state.getCurrentThrustMultiplier();
+                this.elements.thrustValue.textContent = `x${thrustMultiplier.toLocaleString()}`;
+                
+                if (thrustMultiplier > 1) {
+                    // Color based on active powerups
+                    if (this.state.thrustStacks.ultra100x.length > 0) {
+                        this.elements.thrustValue.style.color = '#ffaa00';
+                        this.elements.thrustValue.style.textShadow = '0 0 10px rgba(255, 170, 0, 1)';
+                    } else if (this.state.thrustStacks.mega25x.length > 0) {
+                        this.elements.thrustValue.style.color = '#ff00ff';
+                        this.elements.thrustValue.style.textShadow = '0 0 10px rgba(255, 0, 255, 1)';
+                    } else if (this.state.thrustStacks.speed10x.length > 0) {
+                        this.elements.thrustValue.style.color = '#00ffff';
+                        this.elements.thrustValue.style.textShadow = '0 0 10px rgba(0, 255, 255, 1)';
+                    }
+                } else {
+                    this.elements.thrustValue.style.color = '#fff';
+                    this.elements.thrustValue.style.textShadow = '0 0 5px rgba(255, 255, 255, 0.5)';
+                }
+                
+                this.elements.zoneValue.textContent = CONFIG.ZONES[this.state.currentZoneIndex].name;
+
+                // Fuel bar
+                const fuelPercent = Math.max(0, this.state.fuel);
+                this.elements.fuelBarFill.style.width = `${fuelPercent}%`;
+                this.elements.fuelText.textContent = `FUEL: ${Math.floor(fuelPercent)}%`;
+
+                // Update fuel bar color based on level
+                if (fuelPercent > 50) {
+                    this.elements.fuelBarFill.style.background = 'linear-gradient(90deg, #ff8800, #ffff00)';
+                } else if (fuelPercent > 25) {
+                    this.elements.fuelBarFill.style.background = 'linear-gradient(90deg, #ff4400, #ff8800)';
+                } else {
+                    this.elements.fuelBarFill.style.background = 'linear-gradient(90deg, #ff0000, #ff4400)';
+                }
+
+                // Update altitude scale
+                this.updateAltitudeScale();
+            }
+
+            updateAltitudeScale() {
+                // Dynamically generate scale markers based on current altitude
+                const scaleContainer = this.elements.altitudeScale;
+                
+                // Determine appropriate scale range
+                let scaleMax, scaleStep, unit;
+                const alt = Math.max(this.state.altitude, 100);
+
+                // Always use km when above 1000m
+                if (alt < 1000) {
+                    scaleMax = 1000;
+                    scaleStep = 200;
+                    unit = 'm';
+                } else if (alt < 10000) {
+                    scaleMax = Math.ceil(alt / 1000) * 1000 + 5000;
+                    scaleStep = 1000;
+                    unit = 'km';
+                } else if (alt < 100000) {
+                    scaleMax = Math.ceil(alt / 10000) * 10000 + 50000;
+                    scaleStep = 10000;
+                    unit = 'km';
+                } else if (alt < 1000000) {
+                    scaleMax = Math.ceil(alt / 100000) * 100000 + 500000;
+                    scaleStep = 100000;
+                    unit = 'km';
+                } else if (alt < 10000000) {
+                    scaleMax = Math.ceil(alt / 1000000) * 1000000 + 5000000;
+                    scaleStep = 1000000;
+                    unit = 'km';
+                } else if (alt < 100000000) {
+                    scaleMax = Math.ceil(alt / 10000000) * 10000000 + 50000000;
+                    scaleStep = 10000000;
+                    unit = 'km';
+                } else if (alt < 1000000000) {
+                    scaleMax = Math.ceil(alt / 100000000) * 100000000 + 500000000;
+                    scaleStep = 100000000;
+                    unit = 'km';
+                } else {
+                    scaleMax = Math.ceil(alt / 1000000000) * 1000000000 + 5000000000;
+                    scaleStep = 1000000000;
+                    unit = 'km';
+                }
+
+                // Generate markers
+                scaleContainer.innerHTML = '';
+                const numMarkers = 10;
+                
+                for (let i = 0; i <= numMarkers; i++) {
+                    const value = (scaleMax / numMarkers) * i;
+                    const marker = document.createElement('div');
+                    marker.className = 'scale-marker';
+                    
+                    // Major markers every 5 steps
+                    if (i % 5 === 0) {
+                        marker.classList.add('major');
+                    }
+
+                    let displayValue;
+                    if (unit === 'm') {
+                        displayValue = Math.floor(value);
+                    } else {
+                        // Always show as km
+                        displayValue = (value / 1000).toFixed(0);
+                    }
+
+                    marker.textContent = `${displayValue} ${unit}`;
+                    
+                    // Highlight current altitude marker
+                    if (Math.abs(value - this.state.altitude) < scaleStep / 2) {
+                        marker.style.color = '#ffff00';
+                        marker.style.fontWeight = 'bold';
+                        marker.style.textShadow = '0 0 10px rgba(255, 255, 0, 1)';
+                    }
+
+                    scaleContainer.appendChild(marker);
+                }
+            }
+
+            checkMilestones() {
+                if (this.state.lastMilestone && this.state.lastMilestone !== this.lastShownMilestone) {
+                    this.showMilestone(this.state.lastMilestone);
+                    this.lastShownMilestone = this.state.lastMilestone;
+                    this.audio.playMilestoneSound();
+                }
+            }
+
+            showMilestone(text) {
+                const milestoneEl = this.elements.milestone;
+                milestoneEl.textContent = `${text}!`;
+                milestoneEl.classList.add('visible');
+
+                if (this.milestoneTimeout) {
+                    clearTimeout(this.milestoneTimeout);
+                }
+
+                this.milestoneTimeout = setTimeout(() => {
+                    milestoneEl.classList.remove('visible');
+                }, 3000);
+            }
+
+            spawnPowerup() {
+                // Select powerup type based on altitude - more powerful at higher altitudes
+                let type;
+                const alt = this.state.altitude;
+                
+                if (alt >= 7500000000000) {
+                    // Kuiper Belt and beyond - ALL types but higher chance for Quantum/Hyper
+                    const deepSpaceTypes = [
+                        'quantum-thrust', 'quantum-thrust', 'quantum-thrust', 'quantum-thrust', // 40% quantum
+                        'hyper-thrust', 'hyper-thrust', 'hyper-thrust', // 30% hyper
+                        'ultra-thrust', 'mega-thrust', // 20% other thrust
+                        'fuel' // 10% fuel
+                    ];
+                    type = deepSpaceTypes[Math.floor(Math.random() * deepSpaceTypes.length)];
+                } else if (alt >= 2900000000000) {
+                    // Uranus and beyond - Hyper (1000x) and Ultra (100x) powerups
+                    const outerSpaceTypes = ['ultra-thrust', 'ultra-thrust', 'hyper-thrust', 'hyper-thrust', 'hyper-thrust', 'fuel'];
+                    type = outerSpaceTypes[Math.floor(Math.random() * outerSpaceTypes.length)];
+                } else if (alt >= 400000000000) {
+                    // Asteroid Belt and beyond - ALL types including Speed 10x
+                    const midSpaceTypes = ['speed', 'mega-thrust', 'mega-thrust', 'ultra-thrust', 'ultra-thrust', 'ultra-thrust', 'fuel'];
+                    type = midSpaceTypes[Math.floor(Math.random() * midSpaceTypes.length)];
+                } else if (alt >= 100000) {
+                    // Above 100km - standard powerups WITH fuel
+                    type = this.powerupTypes[Math.floor(Math.random() * this.powerupTypes.length)];
+                } else {
+                    // Below 100km - NO FUEL, only thrust powerups
+                    const noFuelTypes = ['speed', 'speed', 'speed', 'mega-thrust', 'mega-thrust', 'ultra-thrust', 'ultra-thrust'];
+                    type = noFuelTypes[Math.floor(Math.random() * noFuelTypes.length)];
+                }
+                
+                const powerup = new Powerup(this.canvas, type);
+                this.powerups.push(powerup);
+            }
+
+            collectPowerup(powerup) {
+                powerup.collect();
+                
+                // Apply powerup effect
+                let message = '';
+                let powerupName = '';
+                
+                switch (powerup.type) {
+                    case 'speed':
+                        this.state.activateSpeedBoost();
+                        powerupName = '⚡ SPEED BOOST x10';
+                        break;
+                    case 'mega-thrust':
+                        this.state.activateMegaThrust();
+                        powerupName = '🚀 MEGA THRUST x25';
+                        break;
+                    case 'ultra-thrust':
+                        this.state.activateUltraThrust();
+                        powerupName = '💥 ULTRA THRUST x100';
+                        break;
+                    case 'hyper-thrust':
+                        this.state.activateHyperThrust();
+                        powerupName = '⚛️ HYPER THRUST x1000';
+                        break;
+                    case 'quantum-thrust':
+                        this.state.activateQuantumThrust();
+                        powerupName = '🌌 QUANTUM THRUST x10000';
+                        break;
+                    case 'fuel':
+                        this.state.activateFuelRefill();
+                        message = '⛽ FUEL REFILLED +10%!';
+                        this.showPowerupNotification(message);
+                        this.audio.playMilestoneSound();
+                        return;
+                }
+                
+                // For thrust powerups, show specific powerup name + total multiplier
+                const totalMultiplier = this.state.getCurrentThrustMultiplier();
+                const totalStacks = this.state.getTotalStackCount();
+                message = `${powerupName} → TOTAL: x${totalMultiplier.toLocaleString()} (${totalStacks} STACKED!)`;
+                
+                // Show notification
+                this.showPowerupNotification(message);
+                
+                // Play sound
+                this.audio.playMilestoneSound();
+            }
+
+            showPowerupNotification(message) {
+                const notification = this.elements.powerupNotification;
+                notification.textContent = message;
+                notification.classList.add('visible');
+                
+                setTimeout(() => {
+                    notification.classList.remove('visible');
+                }, 3000);
+            }
+
+            handleGameOver() {
+                this.audio.stopThrustSound();
+                this.audio.playGameOverSound();
+
+                // Determine game over reason
+                const gameOverTitle = document.getElementById('gameOverTitle');
+                if (this.state.fuel <= 0) {
+                    gameOverTitle.textContent = 'OUT OF FUEL!';
+                } else if (this.state.altitude <= 0) {
+                    gameOverTitle.textContent = 'CRASHED!';
+                } else {
+                    gameOverTitle.textContent = 'GAME OVER!';
+                }
+
+                // Update final stats - show km when above 1000m
+                let finalAltText;
+                if (this.state.maxAltitude >= 1000) {
+                    finalAltText = `${(this.state.maxAltitude / 1000).toFixed(2)} km`;
+                } else {
+                    finalAltText = `${Math.floor(this.state.maxAltitude)} m`;
+                }
+
+                this.elements.finalAltValue.textContent = finalAltText;
+                this.elements.finalVelValue.textContent = `${Math.floor(this.state.maxVelocity)} m/s`;
+                this.elements.finalZoneValue.textContent = CONFIG.ZONES[this.state.currentZoneIndex].name;
+
+                // Show game over screen
+                this.elements.gameOverScreen.classList.add('visible');
+            }
+        }
+
+        // ============================================
+        // INITIALIZE GAME
+        // ============================================
+        
+        window.addEventListener('load', () => {
+            const game = new Game();
+        });
+    </script>
+</body>
+</html>
