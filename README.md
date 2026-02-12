@@ -82,12 +82,14 @@ Manage your fuel wisely as you ascend through the cosmos. Collect powerups to bo
 
 ## 🚀 How to Play
 
-1. Open `rocket-runtime.html` in any modern web browser
+1. Open `index.html` in any modern web browser
 2. Click "LAUNCH" on the title screen
 3. Hold thrust to ascend
 4. Collect powerups to boost your speed
 5. Manage fuel consumption strategically
 6. See how far you can go!
+
+- Or visit https://universeking4.github.io/Rocket-Runtime
 
 ## 🛠️ Technical Details
 
